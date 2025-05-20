@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -36,23 +35,27 @@ const baseSchema = z.object({
   customReviewDays: z.coerce.number().min(0).max(14, { message: 'Maximum 14 review days' }).optional(),
 });
 
+const pagesSchema = baseSchema.extend({
+  usePages: z.literal(true),
+  pages: z.coerce.number().min(1, { message: 'Minimum 1 page required' }),
+  timePerUnit: z.coerce.number().min(1, { message: 'Must read at least 1 page per hour' }).max(100, { message: 'Maximum 100 pages per hour' }),
+});
+
+const chaptersSchema = baseSchema.extend({
+  usePages: z.literal(false),
+  chapters: z.coerce.number().min(1, { message: 'Minimum 1 chapter required' }),
+  timePerUnit: z.coerce.number().min(0.1, { message: 'Must spend at least 0.1 hours per chapter' }).max(10, { message: 'Maximum 10 hours per chapter' }),
+});
+
 const formSchema = z.discriminatedUnion('usePages', [
-  // Pages mode
-  baseSchema.extend({
-    usePages: z.literal(true),
-    pages: z.coerce.number().min(1, { message: 'Minimum 1 page required' }),
-    timePerUnit: z.coerce.number().min(1, { message: 'Must read at least 1 page per hour' }).max(100, { message: 'Maximum 100 pages per hour' }),
-  }),
-  // Chapters mode
-  baseSchema.extend({
-    usePages: z.literal(false),
-    chapters: z.coerce.number().min(1, { message: 'Minimum 1 chapter required' }),
-    timePerUnit: z.coerce.number().min(0.1, { message: 'Must spend at least 0.1 hours per chapter' }).max(10, { message: 'Maximum 10 hours per chapter' }),
-  })
+  pagesSchema,
+  chaptersSchema
 ]);
 
 // Create type from the schema
 type FormValues = z.infer<typeof formSchema>;
+type PagesFormValues = z.infer<typeof pagesSchema>;
+type ChaptersFormValues = z.infer<typeof chaptersSchema>;
 
 interface ExamFormProps {
   onSubmit: (data: Omit<Exam, 'id'>) => void;
@@ -156,18 +159,22 @@ const ExamForm: React.FC<ExamFormProps> = ({ onSubmit, initialData, onCancel }) 
       return;
     }
     
-    onSubmit({
+    // Use type guards to safely handle discriminated union
+    const examData: Omit<Exam, 'id'> = {
       name: values.name,
       date: new Date(values.date).toISOString(),
-      chapters: !values.usePages ? values.chapters : 0,
-      pages: values.usePages ? values.pages : undefined,
-      usePages: values.usePages,
-      timePerUnit: values.timePerUnit,
       initialLevel: values.initialLevel,
       priority: values.priority,
+      usePages: values.usePages,
+      timePerUnit: values.timePerUnit,
       customReviewDays: values.customReviewDays,
-    });
+      // Add appropriate properties based on the type
+      ...(values.usePages 
+        ? { chapters: 0, pages: (values as PagesFormValues).pages } 
+        : { chapters: (values as ChaptersFormValues).chapters })
+    };
     
+    onSubmit(examData);
     setShowConfirmation(false);
   };
 
