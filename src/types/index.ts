@@ -8,7 +8,7 @@ export interface Exam {
   chapters: number;
   pages?: number; // For page-based study
   usePages?: boolean; // Flag to switch between chapters and pages
-  timePerUnit?: number; // Hours per chapter or page
+  timePerUnit?: number; // Hours per chapter or pages per hour
   initialLevel: number; // 1-5
   priority: Priority;
   color?: string;
@@ -24,7 +24,7 @@ export interface StudyDay {
 
 export interface StudyDayExam {
   examId: string;
-  chapters: number[];
+  chapters: number[]; // Also represents page numbers in page-based mode
   plannedHours: number;
   actualHours: number;
   completed: boolean;
@@ -36,7 +36,7 @@ export interface StudySession {
   examId: string;
   date: string; // ISO string format
   duration: number; // in minutes
-  chapters: number[];
+  chapters: number[]; // Also represents page numbers in page-based mode
   notes?: string;
 }
 

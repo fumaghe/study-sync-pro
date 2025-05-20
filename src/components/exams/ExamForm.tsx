@@ -32,7 +32,7 @@ const formSchema = z.object({
   usePages: z.boolean().default(false),
   chapters: z.coerce.number().min(1, { message: 'Minimum 1 chapter required' }).optional(),
   pages: z.coerce.number().min(1, { message: 'Minimum 1 page required' }).optional(),
-  timePerUnit: z.coerce.number().min(0.1, { message: 'Minimum time required' }).max(10, { message: 'Maximum 10 hours per unit' }),
+  timePerUnit: z.coerce.number().min(0.1, { message: 'Minimum value required' }).max(10, { message: 'Maximum value is 10' }),
   initialLevel: z.coerce.number().min(1).max(5, { message: 'Level must be between 1 and 5' }),
   priority: z.enum(['low', 'medium', 'high']),
   customReviewDays: z.coerce.number().min(0).max(14, { message: 'Maximum 14 review days' }).optional(),
@@ -220,18 +220,22 @@ const ExamForm: React.FC<ExamFormProps> = ({ onSubmit, initialData, onCancel }) 
           name="timePerUnit"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Time per {usePages ? 'Page' : 'Chapter'} (hours)</FormLabel>
+              <FormLabel>
+                {usePages ? 'Pages studied per hour' : 'Hours per chapter'}
+              </FormLabel>
               <FormControl>
                 <Input 
                   type="number" 
                   min="0.1" 
-                  max="10" 
+                  max={usePages ? "100" : "10"} 
                   step="0.1" 
                   {...field} 
                 />
               </FormControl>
               <FormDescription>
-                {usePages ? 'How many hours to study one page' : 'How many hours to study one chapter'}
+                {usePages 
+                  ? 'How many pages you can study in one hour' 
+                  : 'How many hours to study one chapter'}
               </FormDescription>
               <FormMessage />
             </FormItem>

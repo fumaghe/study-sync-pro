@@ -10,9 +10,18 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { FileText, RefreshCw } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Exam } from '@/types';
 
 const StudyPlanPage: React.FC = () => {
   const { exams, studyDays, updateStudyDay, generateStudyPlan } = useAppContext();
+  const [editingDay, setEditingDay] = React.useState<{
+    date: string;
+    examId: string;
+    hours: number;
+    currentChapters: number[];
+  } | null>(null);
   
   // Group study days by week for better visualization
   const groupedDays = studyDays.reduce<{ [weekKey: string]: typeof studyDays }>((acc, day) => {
@@ -40,13 +49,50 @@ const StudyPlanPage: React.FC = () => {
     const studyDay = studyDays.find(d => d.date === day);
     if (!studyDay) return;
     
+    if (completed) {
+      // Open the edit dialog when marking as complete
+      const examDay = studyDay.exams.find(e => e.examId === examId);
+      if (examDay) {
+        setEditingDay({
+          date: day,
+          examId,
+          hours: examDay.plannedHours,
+          currentChapters: [...examDay.chapters],
+        });
+      }
+    } else {
+      // Just update completion status when unchecking
+      const updatedDay = {
+        ...studyDay,
+        exams: studyDay.exams.map(exam => {
+          if (exam.examId === examId) {
+            return {
+              ...exam,
+              completed: false
+            };
+          }
+          return exam;
+        })
+      };
+      
+      updateStudyDay(updatedDay);
+    }
+  };
+  
+  const handleSaveActualStudy = () => {
+    if (!editingDay) return;
+    
+    const studyDay = studyDays.find(d => d.date === editingDay.date);
+    if (!studyDay) return;
+    
     const updatedDay = {
       ...studyDay,
       exams: studyDay.exams.map(exam => {
-        if (exam.examId === examId) {
+        if (exam.examId === editingDay.examId) {
           return {
             ...exam,
-            completed
+            completed: true,
+            actualHours: editingDay.hours
           };
         }
         return exam;
@@ -54,6 +100,20 @@ const StudyPlanPage: React.FC = () => {
     };
     
     updateStudyDay(updatedDay);
+    setEditingDay(null);
+  };
+  
+  const formatUnitRange = (chapters: number[], exam?: Exam): string => {
+    if (!chapters.length) return 'All content';
+    if (!exam) return chapters.join(', ');
+    
+    if (exam.usePages) {
+      const min = Math.min(...chapters);
+      const max = Math.max(...chapters);
+      return `Pages ${min}–${max}`;
+    } else {
+      return `Chapters: ${chapters.join(', ')}`;
+    }
   };
   
   return (
@@ -158,16 +218,23 @@ const StudyPlanPage: React.FC = () => {
                                             </p>
                                           ) : examDay.chapters.length > 0 ? (
                                             <p className="text-xs text-muted-foreground">
-                                              {exam.usePages ? 'Pages' : 'Chapters'}: {examDay.chapters.join(', ')}
+                                              {formatUnitRange(examDay.chapters, exam)}
                                             </p>
                                           ) : (
                                             <p className="text-xs text-muted-foreground">General study</p>
                                           )}
                                         </div>
                                       </div>
-                                      <Badge variant="outline">
-                                        {examDay.plannedHours} hours
-                                      </Badge>
+                                      <div className="flex items-center gap-2">
+                                        {examDay.completed && examDay.actualHours > 0 && (
+                                          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 dark:bg-green-900 dark:text-green-300 dark:border-green-700">
+                                            {examDay.actualHours}h done
+                                          </Badge>
+                                        )}
+                                        <Badge variant="outline">
+                                          {examDay.plannedHours} hours
+                                        </Badge>
+                                      </div>
                                     </div>
                                   );
                                 })}
@@ -184,6 +251,37 @@ const StudyPlanPage: React.FC = () => {
           )}
         </div>
       </div>
+      
+      {/* Dialog for editing actual study progress */}
+      <Dialog open={!!editingDay} onOpenChange={(open) => !open && setEditingDay(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Update Study Progress</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Hours Actually Studied</label>
+              <Input 
+                type="number"
+                min="0"
+                step="0.1"
+                value={editingDay?.hours || 0}
+                onChange={(e) => setEditingDay(prev => 
+                  prev ? {...prev, hours: parseFloat(e.target.value) || 0} : null
+                )}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingDay(null)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveActualStudy}>
+              Save Progress
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 };
