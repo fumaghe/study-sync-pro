@@ -3,8 +3,9 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 
-// https://vitejs.dev/config/
+// vite.config.js
 export default defineConfig(({ mode }) => ({
+  base: '/study-sync-pro/', // <-- cambia col nome della tua repo
   server: {
     host: "::",
     port: 8080,
