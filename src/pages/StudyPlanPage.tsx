@@ -21,6 +21,7 @@ interface EditDayState {
   hours: number;
   currentChapters: number[];
   isReview?: boolean;
+  canAddCustomChapters?: boolean;
 }
 
 const StudyPlanPage: React.FC = () => {
@@ -32,6 +33,7 @@ const StudyPlanPage: React.FC = () => {
   } = useAppContext();
   
   const [editingDay, setEditingDay] = useState<EditDayState | null>(null);
+  const [newChapterValue, setNewChapterValue] = useState<string>('');
   
   // Group study days by week for better visualization
   const groupedDays = studyDays.reduce<{ [weekKey: string]: typeof studyDays }>((acc, day) => {
@@ -68,7 +70,8 @@ const StudyPlanPage: React.FC = () => {
           examId,
           hours: examDay.plannedHours,
           currentChapters: [...examDay.chapters],
-          isReview: examDay.isReview
+          isReview: examDay.isReview,
+          canAddCustomChapters: true
         });
       }
     } else {
@@ -104,8 +107,8 @@ const StudyPlanPage: React.FC = () => {
             ...exam,
             completed: true,
             actualHours: editingDay.hours,
-            // Only update chapters if not a review day
-            ...(exam.isReview ? {} : { chapters: editingDay.currentChapters })
+            // Use the current chapters from the dialog
+            chapters: editingDay.currentChapters
           };
         }
         return exam;
@@ -114,6 +117,33 @@ const StudyPlanPage: React.FC = () => {
     
     updateStudyDay(updatedDay);
     setEditingDay(null);
+    setNewChapterValue('');
+  };
+  
+  const handleAddNewChapter = () => {
+    if (!editingDay || !newChapterValue) return;
+    
+    const chapterNum = parseInt(newChapterValue);
+    if (isNaN(chapterNum)) return;
+    
+    // Add the new chapter if it doesn't already exist
+    if (!editingDay.currentChapters.includes(chapterNum)) {
+      setEditingDay({
+        ...editingDay,
+        currentChapters: [...editingDay.currentChapters, chapterNum].sort((a, b) => a - b)
+      });
+    }
+    
+    setNewChapterValue('');
+  };
+  
+  const handleRemoveChapter = (chapter: number) => {
+    if (!editingDay) return;
+    
+    setEditingDay({
+      ...editingDay,
+      currentChapters: editingDay.currentChapters.filter(c => c !== chapter)
+    });
   };
   
   const formatUnitRange = (chapters: number[], exam?: Exam): string => {
@@ -127,6 +157,16 @@ const StudyPlanPage: React.FC = () => {
     } else {
       return `Chapters: ${chapters.join(', ')}`;
     }
+  };
+  
+  // Function to update the available hours for a day
+  const handleUpdateAvailableHours = (day: StudyDay, hours: number) => {
+    const updatedDay = {
+      ...day,
+      availableHours: hours
+    };
+    
+    updateStudyDay(updatedDay);
   };
   
   return (
@@ -189,10 +229,23 @@ const StudyPlanPage: React.FC = () => {
                           
                           if (!day.available || day.exams.length === 0) {
                             return (
-                              <div key={day.date} className="py-2 px-4 rounded-md border border-dashed flex items-center">
+                              <div key={day.date} className="py-2 px-4 rounded-md border border-dashed flex items-center justify-between">
                                 <span className="text-muted-foreground">
                                   {format(dayDate, 'EEEE, MMM d')} - {!day.available ? 'Day Off' : 'No study tasks'}
                                 </span>
+                                {day.available && (
+                                  <div className="flex items-center gap-2">
+                                    <Input
+                                      type="number"
+                                      min="0.5"
+                                      step="0.5"
+                                      className="w-20"
+                                      value={day.availableHours}
+                                      onChange={(e) => handleUpdateAvailableHours(day, parseFloat(e.target.value) || 0)}
+                                    />
+                                    <span className="text-xs text-muted-foreground">hours</span>
+                                  </div>
+                                )}
                               </div>
                             );
                           }
@@ -201,7 +254,17 @@ const StudyPlanPage: React.FC = () => {
                             <div key={day.date} className="border rounded-md overflow-hidden">
                               <div className="bg-muted/50 py-2 px-4 flex justify-between items-center">
                                 <span className="font-medium">{format(dayDate, 'EEEE, MMM d')}</span>
-                                <span className="text-sm text-muted-foreground">{day.availableHours} hours available</span>
+                                <div className="flex items-center gap-2">
+                                  <Input
+                                    type="number"
+                                    min="0.5"
+                                    step="0.5"
+                                    className="w-20"
+                                    value={day.availableHours}
+                                    onChange={(e) => handleUpdateAvailableHours(day, parseFloat(e.target.value) || 0)}
+                                  />
+                                  <span className="text-xs text-muted-foreground">hours available</span>
+                                </div>
                               </div>
                               <div className="divide-y">
                                 {day.exams.map(examDay => {
@@ -285,7 +348,7 @@ const StudyPlanPage: React.FC = () => {
               />
             </div>
             
-            {editingDay && !editingDay.isReview && editingDay.currentChapters.length > 0 && (
+            {editingDay && (
               <div className="space-y-2">
                 <Label>
                   {(() => {
@@ -293,21 +356,17 @@ const StudyPlanPage: React.FC = () => {
                     return exam?.usePages ? 'Pages Completed' : 'Chapters Completed';
                   })()}
                 </Label>
-                <div className="grid grid-cols-2 gap-2">
+                
+                {/* Show existing chapters/pages */}
+                <div className="grid grid-cols-2 gap-2 mb-4">
                   {editingDay.currentChapters.map((unit, idx) => (
                     <div key={idx} className="flex items-center space-x-2">
                       <Checkbox 
                         id={`unit-${unit}`}
                         checked={true}
                         onCheckedChange={(checked) => {
-                          if (checked === false && editingDay.currentChapters.length > 1) {
-                            setEditingDay(prev => {
-                              if (!prev) return prev;
-                              return {
-                                ...prev,
-                                currentChapters: prev.currentChapters.filter((_, i) => i !== idx)
-                              };
-                            });
+                          if (checked === false) {
+                            handleRemoveChapter(unit);
                           }
                         }}
                       />
@@ -320,6 +379,37 @@ const StudyPlanPage: React.FC = () => {
                     </div>
                   ))}
                 </div>
+                
+                {/* Add custom chapters/pages */}
+                {editingDay.canAddCustomChapters && (
+                  <div className="mt-4">
+                    <Label className="text-sm mb-2 block">
+                      Add {(() => {
+                        const exam = exams.find(e => e.id === editingDay?.examId);
+                        return exam?.usePages ? 'pages' : 'chapters';
+                      })()}:
+                    </Label>
+                    <div className="flex items-center space-x-2">
+                      <Input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={newChapterValue}
+                        onChange={(e) => setNewChapterValue(e.target.value)}
+                        className="w-24"
+                        placeholder="e.g. 15"
+                      />
+                      <Button 
+                        type="button" 
+                        size="sm"
+                        onClick={handleAddNewChapter}
+                        disabled={!newChapterValue}
+                      >
+                        Add
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAppContext } from '@/contexts/AppContext';
@@ -20,6 +21,7 @@ interface CompletionDialogState {
 const TodayStudyPlan: React.FC = () => {
   const { exams, studyDays, updateStudyDay } = useAppContext();
   const [editingExam, setEditingExam] = useState<CompletionDialogState | null>(null);
+  const [newUnitValue, setNewUnitValue] = useState<string>('');
   
   const today = format(new Date(), 'yyyy-MM-dd');
   const todayPlan = studyDays.find(day => day.date === today);
@@ -35,30 +37,6 @@ const TodayStudyPlan: React.FC = () => {
     } else {
       return `Chapter ${chapters.join(', ')}`;
     }
-  };
-  
-  const handleToggleChapterCompletion = (examId: string, chapterIndex: number, completed: boolean) => {
-    if (!todayPlan) return;
-    
-    const updatedPlan = {
-      ...todayPlan,
-      exams: todayPlan.exams.map(exam => {
-        if (exam.examId === examId) {
-          // Find if we need to update the chapter completion
-          const updatedChapters = exam.chapters.map((chapter, idx) => 
-            idx === chapterIndex ? (completed ? chapter : chapter) : chapter
-          );
-          
-          return {
-            ...exam,
-            completed: completed && exam.chapters.length === 1
-          };
-        }
-        return exam;
-      })
-    };
-    
-    updateStudyDay(updatedPlan);
   };
   
   const handleToggleExamCompletion = (examId: string, completed: boolean) => {
@@ -94,6 +72,32 @@ const TodayStudyPlan: React.FC = () => {
     }
   };
   
+  const handleAddNewUnit = () => {
+    if (!editingExam || !newUnitValue) return;
+    
+    const unitNum = parseInt(newUnitValue);
+    if (isNaN(unitNum)) return;
+    
+    // Add the new unit if it doesn't already exist
+    if (!editingExam.chapters.includes(unitNum)) {
+      setEditingExam({
+        ...editingExam,
+        chapters: [...editingExam.chapters, unitNum].sort((a, b) => a - b)
+      });
+    }
+    
+    setNewUnitValue('');
+  };
+  
+  const handleRemoveUnit = (unit: number) => {
+    if (!editingExam) return;
+    
+    setEditingExam({
+      ...editingExam,
+      chapters: editingExam.chapters.filter(c => c !== unit)
+    });
+  };
+  
   const handleSaveActualStudy = () => {
     if (!editingExam || !todayPlan) return;
     
@@ -105,8 +109,8 @@ const TodayStudyPlan: React.FC = () => {
             ...exam,
             completed: true,
             actualHours: editingExam.hours,
-            // Keep original chapters for review days, otherwise use the ones from dialog
-            chapters: exam.isReview ? exam.chapters : editingExam.chapters
+            // Use the chapters from dialog even for review days
+            chapters: editingExam.chapters
           };
         }
         return exam;
@@ -115,6 +119,7 @@ const TodayStudyPlan: React.FC = () => {
     
     updateStudyDay(updatedPlan);
     setEditingExam(null);
+    setNewUnitValue('');
   };
 
   return (
@@ -166,24 +171,12 @@ const TodayStudyPlan: React.FC = () => {
                       Review day - Practice all {exam.usePages ? 'pages' : 'chapters'}
                     </div>
                   ) : examDay.chapters.length > 0 ? (
-                    <div className="pl-6 space-y-1 text-sm">
-                      <div className="flex items-center space-x-2">
-                        <Checkbox 
-                          id={`exam-${exam.id}-chapters`}
-                          checked={examDay.completed}
-                          onCheckedChange={(checked) => 
-                            handleToggleChapterCompletion(exam.id, 0, checked === true)
-                          }
-                        />
-                        <label 
-                          htmlFor={`exam-${exam.id}-chapters`}
-                          className={`text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 ${examDay.completed ? 'line-through text-muted-foreground' : ''}`}
-                        >
-                          {formatUnitRange(examDay.chapters, exam)}
-                        </label>
-                      </div>
+                    <div className="pl-6 text-xs text-muted-foreground">
+                      {formatUnitRange(examDay.chapters, exam)}
                     </div>
-                  ) : null}
+                  ) : (
+                    <div className="pl-6 text-xs text-muted-foreground">General study</div>
+                  )}
                 </div>
               );
             })}
@@ -229,15 +222,17 @@ const TodayStudyPlan: React.FC = () => {
               />
             </div>
             
-            {editingExam && !editingExam.allUnits && (
-              <div className="space-y-2">
-                <Label>
-                  {(() => {
-                    const exam = exams.find(e => e.id === editingExam?.examId);
-                    return exam?.usePages ? 'Pages Completed' : 'Chapters Completed';
-                  })()}
-                </Label>
-                <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-2">
+              <Label>
+                {(() => {
+                  const exam = exams.find(e => e.id === editingExam?.examId);
+                  return exam?.usePages ? 'Pages Completed' : 'Chapters Completed';
+                })()}
+              </Label>
+              
+              {/* Display existing units */}
+              {editingExam && (
+                <div className="grid grid-cols-2 gap-2 mb-4">
                   {editingExam.chapters.map((unit, idx) => (
                     <div key={idx} className="flex items-center space-x-2">
                       <Checkbox 
@@ -245,13 +240,7 @@ const TodayStudyPlan: React.FC = () => {
                         checked={true}
                         onCheckedChange={(checked) => {
                           if (checked === false && editingExam.chapters.length > 1) {
-                            setEditingExam(prev => {
-                              if (!prev) return prev;
-                              return {
-                                ...prev,
-                                chapters: prev.chapters.filter((_, i) => i !== idx)
-                              };
-                            });
+                            handleRemoveUnit(unit);
                           }
                         }}
                       />
@@ -264,8 +253,39 @@ const TodayStudyPlan: React.FC = () => {
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
+              )}
+              
+              {/* Add custom units */}
+              {editingExam && (
+                <div className="mt-4">
+                  <Label className="text-sm mb-2 block">
+                    Add {(() => {
+                      const exam = exams.find(e => e.id === editingExam?.examId);
+                      return exam?.usePages ? 'pages' : 'chapters';
+                    })()}:
+                  </Label>
+                  <div className="flex items-center space-x-2">
+                    <Input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={newUnitValue}
+                      onChange={(e) => setNewUnitValue(e.target.value)}
+                      className="w-24"
+                      placeholder="e.g. 15"
+                    />
+                    <Button 
+                      type="button" 
+                      size="sm"
+                      onClick={handleAddNewUnit}
+                      disabled={!newUnitValue}
+                    >
+                      Add
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingExam(null)}>

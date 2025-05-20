@@ -290,7 +290,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       
       // Calculate smart distribution
       let remainingToDistribute = remainingUnits;
-      let nextUnitToAssign = Array.from(progress.completedUnits).length + 1;
+      // Important: Calculate the next unit to assign based on the highest completed unit
+      // This fixes the issue of not correctly tracking progress
+      let nextUnitToAssign = progress.completedUnits.size > 0 
+        ? Math.max(...Array.from(progress.completedUnits)) + 1
+        : 1;
       
       // For small exams far in the future, skip some days at the beginning
       const isSmallExamFarAway = 
@@ -405,27 +409,46 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  // Helper to get completed units for an exam based on completed study days
+  const getCompletedUnits = (examId: string): Set<number> => {
+    const completedUnits = new Set<number>();
+    
+    // Look through all completed days for this exam
+    studyDays.forEach(day => {
+      day.exams.forEach(examDay => {
+        if (examDay.examId === examId && examDay.completed) {
+          // Add all chapters/pages that were completed
+          examDay.chapters.forEach(unit => completedUnits.add(unit));
+        }
+      });
+    });
+    
+    return completedUnits;
+  };
+
   const generateStudyPlan = (options?: RegenerationOptions) => {
     if (exams.length === 0) {
       toast.error("Add some exams before generating a study plan!");
       return;
     }
 
-    // Get current completed sessions if we're keeping them
-    const completedSessions = options?.keepCompletedSessions 
-      ? studyDays.flatMap(day => 
-          day.exams
-            .filter(exam => exam.completed)
-            .map(exam => ({ day: day.date, exam }))
-        )
-      : [];
-
-    // Clear existing study plan - fix for regeneration issue
-    setStudyDays([]);
-
+    // Let's preserve the existing days but modify as needed 
+    // based on keepCompletedSessions option
+    let existingDays = [...studyDays];
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
+    // If we're not keeping completed sessions, reset the days array
+    if (!options?.keepCompletedSessions) {
+      existingDays = [];
+    } else {
+      // Filter out any days that don't have completed exams
+      // We'll preserve only days with completed status
+      existingDays = existingDays.filter(day => 
+        day.exams.some(examDay => examDay.completed)
+      );
+    }
+
     const furthestExamDate = exams.reduce((maxDate, exam) => {
       const examDate = parseISO(exam.date);
       return isAfter(examDate, maxDate) ? examDate : maxDate;
@@ -440,24 +463,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const currentDate = addDays(today, i);
       const dateString = format(currentDate, 'yyyy-MM-dd');
       
-      // Create fresh study days for all dates, preserving only availability settings if they exist
-      const existingDay = studyDays.find(day => day.date === dateString);
+      // Check if this day already exists in our existing days
+      const existingDay = existingDays.find(day => day.date === dateString);
       
-      newStudyDays.push({
-        date: dateString,
-        available: existingDay ? existingDay.available : true,
-        availableHours: existingDay ? existingDay.availableHours : settings.defaultDailyHours,
-        exams: [] // Start with empty exams for each day
-      });
+      if (existingDay) {
+        // If the day already exists in our preserved days, use it
+        newStudyDays.push(existingDay);
+      } else {
+        // Otherwise create a fresh day
+        const previousDay = studyDays.find(day => day.date === dateString);
+        newStudyDays.push({
+          date: dateString,
+          available: previousDay ? previousDay.available : true,
+          availableHours: previousDay ? previousDay.availableHours : settings.defaultDailyHours,
+          exams: [] // Start with empty exams for each day
+        });
+      }
     }
+
+    // Get track of which exams already have completed sessions
+    const processedExams = new Set<string>();
     
-    // If keeping completed sessions, add them back
-    if (options?.keepCompletedSessions && completedSessions.length > 0) {
-      completedSessions.forEach(({ day: dayDate, exam }) => {
-        const dayIndex = newStudyDays.findIndex(d => d.date === dayDate);
-        if (dayIndex >= 0) {
-          newStudyDays[dayIndex].exams.push(exam);
-        }
+    if (options?.keepCompletedSessions) {
+      // Mark exams that have completed sessions
+      existingDays.forEach(day => {
+        day.exams.forEach(examDay => {
+          if (examDay.completed) {
+            processedExams.add(examDay.examId);
+          }
+        });
       });
     }
     
@@ -468,38 +502,64 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       
       if (daysUntilExam <= 0) return; // Skip past exams
       
+      // Skip if this exam has completed sessions and we're keeping them
+      if (options?.keepCompletedSessions && processedExams.has(exam.id)) {
+        // For exams with completed sessions, we need to recalculate the remaining days
+        // We'll get the completed units and distribute the remaining ones
+        
+        const completedUnits = getCompletedUnits(exam.id);
+        const totalUnits = exam.usePages ? (exam.pages || 0) : exam.chapters;
+        const remainingUnits = totalUnits - completedUnits.size;
+        
+        // Only recalculate if there are remaining units
+        if (remainingUnits > 0) {
+          // Find the latest completed day for this exam
+          const completedDays = newStudyDays.filter(day => 
+            day.exams.some(e => e.examId === exam.id && e.completed)
+          );
+          
+          let latestCompletedDay: StudyDay | undefined;
+          if (completedDays.length > 0) {
+            latestCompletedDay = completedDays.reduce((latest, day) => {
+              return parseISO(day.date) > parseISO(latest.date) ? day : latest;
+            }, completedDays[0]);
+          }
+          
+          // Get available future days after the latest completed day
+          const futureDaysStart = latestCompletedDay 
+            ? newStudyDays.findIndex(day => day.date === latestCompletedDay.date) + 1
+            : 0;
+            
+          const availableDays = newStudyDays.slice(futureDaysStart).filter(day => {
+            const dayDate = parseISO(day.date);
+            return !isSameDay(dayDate, examDate) && // Skip exam day
+                   isBefore(dayDate, examDate) && // Only days before exam
+                   day.available; // Only available days
+          });
+          
+          // Calculate study plan for remaining units
+          distributeRemainingUnits(
+            availableDays, 
+            exam, 
+            remainingUnits, 
+            completedUnits,
+            Math.max(...Array.from(completedUnits)) + 1
+          );
+        }
+        
+        return; // Skip regular distribution for this exam
+      }
+      
       // Calculate review days based on exam-specific settings or default
       const reviewDaysForExam = exam.customReviewDays !== undefined ? exam.customReviewDays : settings.reviewDays;
       
-      // Skip the exam day itself - we don't want to study on the day of the exam
-      // Find the index of the exam day
-      const examDayIndex = newStudyDays.findIndex(day => {
-        const dayDate = parseISO(day.date);
-        return isSameDay(dayDate, examDate);
-      });
-      
-      // Skip if this exam has completed sessions and we're keeping them
-      if (options?.keepCompletedSessions) {
-        const hasCompletedSessions = completedSessions.some(
-          session => session.exam.examId === exam.id
-        );
-        
-        if (hasCompletedSessions) {
-          // Skip this exam as it has completed sessions we want to keep
-          return;
-        }
-      }
-      
       // Get available days excluding exam day
-      let availableDays = newStudyDays.filter((day, index) => {
-        if (index === examDayIndex) return false; // Exclude exam day
-        
+      let availableDays = newStudyDays.filter(day => {
         const dayDate = parseISO(day.date);
-        return dayDate < examDate && // Before exam date
+        return !isSameDay(dayDate, examDate) && // Skip the exam day itself
+               isBefore(dayDate, examDate) && // Only before exam date
                day.available && // Is available
-               !options?.keepCompletedSessions || // If not keeping completed
-               (options.keepCompletedSessions && 
-                !day.exams.some(e => e.completed)); // No completed exams if keeping
+               !day.exams.some(e => e.examId === exam.id); // No existing entries for this exam
       });
       
       // Calculate total study units (chapters or pages)
@@ -641,6 +701,123 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     
     setStudyDays(newStudyDays);
     toast.success("Study plan generated successfully!");
+  };
+
+  // New helper function to distribute remaining units
+  const distributeRemainingUnits = (
+    availableDays: StudyDay[],
+    exam: Exam, 
+    remainingUnits: number,
+    completedUnits: Set<number>,
+    nextUnitToStart: number
+  ) => {
+    if (availableDays.length === 0 || remainingUnits <= 0) return;
+    
+    // Calculate time per unit
+    let timePerUnit: number;
+    if (exam.usePages) {
+      timePerUnit = 1 / (exam.timePerUnit || 20); // Convert pages/hour to hours/page
+    } else {
+      timePerUnit = exam.timePerUnit || 1; // Default: 1h/chapter
+    }
+    
+    // Calculate review days
+    const reviewDaysForExam = exam.customReviewDays !== undefined 
+      ? exam.customReviewDays 
+      : settings.reviewDays;
+    
+    const reviewStartIndex = Math.max(0, availableDays.length - reviewDaysForExam);
+    const studyDaysAvailable = availableDays.slice(0, reviewStartIndex);
+    const reviewDays = availableDays.slice(reviewStartIndex);
+    
+    // Handle special case if no study days available
+    if (studyDaysAvailable.length === 0 && reviewDays.length > 0) {
+      const daysToConvert = Math.min(Math.ceil(reviewDays.length / 2), reviewDays.length);
+      for (let i = 0; i < daysToConvert; i++) {
+        studyDaysAvailable.push(reviewDays[i]);
+      }
+      reviewDays.splice(0, daysToConvert);
+    }
+    
+    // Calculate units per day
+    const unitsPerDay = studyDaysAvailable.length > 0
+      ? Math.ceil(remainingUnits / studyDaysAvailable.length)
+      : 0;
+    
+    // Distribute units
+    let currentRemainingUnits = remainingUnits;
+    let currentUnitNumber = nextUnitToStart;
+    
+    studyDaysAvailable.forEach(day => {
+      if (currentRemainingUnits <= 0) return;
+      
+      const maxUnitsForToday = Math.min(
+        unitsPerDay,
+        currentRemainingUnits,
+        Math.floor(day.availableHours / timePerUnit)
+      );
+      
+      const todayUnits = Array.from(
+        { length: maxUnitsForToday },
+        (_, i) => currentUnitNumber + i
+      );
+      
+      const hoursNeeded = Math.max(0.5, maxUnitsForToday * timePerUnit);
+      
+      const existingExamIndex = day.exams.findIndex(e => e.examId === exam.id);
+      
+      if (existingExamIndex >= 0) {
+        // Update existing entry if this day wasn't completed
+        if (!day.exams[existingExamIndex].completed) {
+          day.exams[existingExamIndex] = {
+            ...day.exams[existingExamIndex],
+            chapters: todayUnits,
+            plannedHours: hoursNeeded,
+            isReview: false
+          };
+        }
+      } else {
+        // Add new entry
+        day.exams.push({
+          examId: exam.id,
+          chapters: todayUnits,
+          plannedHours: hoursNeeded,
+          actualHours: 0,
+          completed: false,
+          isReview: false
+        });
+      }
+      
+      currentUnitNumber += maxUnitsForToday;
+      currentRemainingUnits -= maxUnitsForToday;
+    });
+    
+    // Add review days
+    reviewDays.forEach(day => {
+      const existingExamIndex = day.exams.findIndex(e => e.examId === exam.id);
+      
+      if (existingExamIndex >= 0) {
+        // Update if not completed
+        if (!day.exams[existingExamIndex].completed) {
+          day.exams[existingExamIndex] = {
+            ...day.exams[existingExamIndex],
+            chapters: [],
+            isReview: true,
+            plannedHours: 1
+          };
+        }
+      } else {
+        // Add new review day
+        day.exams.push({
+          examId: exam.id,
+          chapters: [],
+          plannedHours: 1,
+          actualHours: 0,
+          completed: false,
+          isReview: true
+        });
+      }
+    });
   };
 
   const resetData = () => {
