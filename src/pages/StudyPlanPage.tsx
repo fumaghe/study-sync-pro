@@ -8,6 +8,8 @@ import StudyCalendar from '@/components/calendar/StudyCalendar';
 import { format, parseISO } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { FileText, RefreshCw } from 'lucide-react';
 
 const StudyPlanPage: React.FC = () => {
   const { exams, studyDays, updateStudyDay, generateStudyPlan } = useAppContext();
@@ -29,6 +31,10 @@ const StudyPlanPage: React.FC = () => {
   
   // Sort weeks chronologically
   const sortedWeeks = Object.keys(groupedDays).sort();
+  
+  // Check for empty but available days (for optimization suggestion)
+  const emptyAvailableDays = studyDays.filter(day => day.available && day.exams.length === 0);
+  const hasEmptyDays = emptyAvailableDays.length > 0;
   
   const handleToggleCompletion = (day: string, examId: string, completed: boolean) => {
     const studyDay = studyDays.find(d => d.date === day);
@@ -55,9 +61,20 @@ const StudyPlanPage: React.FC = () => {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold tracking-tight">Study Plan</h1>
         <Button onClick={() => generateStudyPlan()}>
+          <RefreshCw className="mr-2 h-4 w-4" />
           Regenerate Plan
         </Button>
       </div>
+      
+      {hasEmptyDays && (
+        <Alert className="mb-6 bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-800">
+          <FileText className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+          <AlertDescription className="text-amber-700 dark:text-amber-300">
+            There are {emptyAvailableDays.length} available days with no study tasks assigned. 
+            Consider regenerating the plan to optimize your schedule.
+          </AlertDescription>
+        </Alert>
+      )}
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="md:col-span-1">
@@ -118,6 +135,8 @@ const StudyPlanPage: React.FC = () => {
                                   const exam = exams.find(e => e.id === examDay.examId);
                                   if (!exam) return null;
                                   
+                                  const isReviewDay = examDay.isReview || examDay.chapters.length === 0;
+                                  
                                   return (
                                     <div key={exam.id} className="py-3 px-4 flex items-center justify-between">
                                       <div className="flex items-center gap-3">
@@ -130,12 +149,19 @@ const StudyPlanPage: React.FC = () => {
                                         />
                                         <div className={`${examDay.completed ? 'line-through text-muted-foreground' : ''}`}>
                                           <p className="font-medium">{exam.name}</p>
-                                          {examDay.chapters.length > 0 ? (
+                                          {isReviewDay ? (
+                                            <p className="text-xs text-muted-foreground flex items-center">
+                                              <Badge variant="outline" className="mr-1 bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900 dark:text-blue-300 dark:border-blue-700">
+                                                Review Day
+                                              </Badge>
+                                              Practice all {exam.usePages ? 'pages' : 'chapters'}
+                                            </p>
+                                          ) : examDay.chapters.length > 0 ? (
                                             <p className="text-xs text-muted-foreground">
-                                              Chapters: {examDay.chapters.join(', ')}
+                                              {exam.usePages ? 'Pages' : 'Chapters'}: {examDay.chapters.join(', ')}
                                             </p>
                                           ) : (
-                                            <p className="text-xs text-muted-foreground">Review day</p>
+                                            <p className="text-xs text-muted-foreground">General study</p>
                                           )}
                                         </div>
                                       </div>

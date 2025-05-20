@@ -189,6 +189,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
+    // Clear existing study plan - FIX for regeneration issue
+    setStudyDays([]);
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
@@ -206,19 +209,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const currentDate = addDays(today, i);
       const dateString = format(currentDate, 'yyyy-MM-dd');
       
-      // Check if this day already exists in our current studyDays
+      // Create fresh study days for all dates, preserving only availability settings if they exist
       const existingDay = studyDays.find(day => day.date === dateString);
       
-      if (existingDay) {
-        newStudyDays.push(existingDay);
-      } else {
-        newStudyDays.push({
-          date: dateString,
-          available: true,
-          availableHours: settings.defaultDailyHours,
-          exams: []
-        });
-      }
+      newStudyDays.push({
+        date: dateString,
+        available: existingDay ? existingDay.available : true,
+        availableHours: existingDay ? existingDay.availableHours : settings.defaultDailyHours,
+        exams: [] // Start with empty exams for each day
+      });
     }
     
     // Calculate study load for each exam
@@ -228,43 +227,52 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       
       if (daysUntilExam < 0) return; // Skip past exams
       
-      // Calculate review days - don't schedule new chapters during review period
-      const reviewStartDay = Math.max(0, daysUntilExam - settings.reviewDays);
+      // Calculate review days based on exam-specific settings or default
+      const reviewDaysForExam = exam.customReviewDays !== undefined ? exam.customReviewDays : settings.reviewDays;
+      const reviewStartDay = Math.max(0, daysUntilExam - reviewDaysForExam);
       
       // Calculate chapters per day, excluding review days
       const availableDays = reviewStartDay;
-      const chaptersPerDay = availableDays > 0 ? exam.chapters / availableDays : 0;
+      
+      // Calculate study units (chapters or pages)
+      const studyUnits = exam.usePages ? exam.pages : exam.chapters;
+      const timePerUnit = exam.timePerUnit || (exam.usePages ? 0.5 : 1); // Default: 30min/page or 1h/chapter
+      
+      const unitsPerDay = availableDays > 0 ? studyUnits / availableDays : 0;
 
-      // Distribute chapters
-      let remainingChapters = exam.chapters;
+      // Distribute chapters/pages
+      let remainingUnits = studyUnits;
       for (let i = 0; i <= daysUntilExam; i++) {
         if (!newStudyDays[i].available) continue;
 
         const isReviewDay = i >= reviewStartDay;
-        let chaptersToday = 0;
+        let unitsToday = 0;
         
-        if (!isReviewDay && remainingChapters > 0) {
-          chaptersToday = Math.min(Math.ceil(chaptersPerDay), remainingChapters);
-          remainingChapters -= chaptersToday;
+        if (!isReviewDay && remainingUnits > 0) {
+          // Calculate units for today based on available time
+          const maxUnitsForTime = newStudyDays[i].availableHours / timePerUnit;
+          unitsToday = Math.min(Math.ceil(unitsPerDay), remainingUnits, maxUnitsForTime);
+          remainingUnits -= unitsToday;
         }
         
-        if (chaptersToday > 0 || isReviewDay) {
+        if (unitsToday > 0 || isReviewDay) {
           // Calculate weight based on priority and initial level
           const weight = priorityWeight(exam.priority) * (6 - exam.initialLevel);
           
-          // Calculate hours based on weight and chapters
-          const hoursNeeded = isReviewDay ? 1 : Math.max(0.5, chaptersToday * 0.5);
+          // Calculate hours based on weight and units (chapters or pages)
+          const hoursNeeded = isReviewDay ? 1 : Math.max(0.5, unitsToday * timePerUnit);
           
           // Add exam to this day
           const dayExam: StudyDayExam = {
             examId: exam.id,
-            chapters: isReviewDay ? [] : Array.from({ length: chaptersToday }, (_, i) => {
-              const completedChapters = exam.chapters - remainingChapters - chaptersToday;
-              return completedChapters + i + 1;
+            chapters: isReviewDay ? [] : Array.from({ length: unitsToday }, (_, j) => {
+              const completedUnits = studyUnits - remainingUnits - unitsToday;
+              return completedUnits + j + 1;
             }),
             plannedHours: hoursNeeded,
             actualHours: 0,
-            completed: false
+            completed: false,
+            isReview: isReviewDay
           };
 
           newStudyDays[i].exams.push(dayExam);
@@ -272,13 +280,29 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
     
-    // Adjust hours based on available time
+    // Maximize and optimize daily load - distribute remaining time proportionally
     newStudyDays.forEach(day => {
-      // Calculate total hours needed for the day
+      if (!day.available || day.exams.length === 0) return;
+      
+      // Calculate total hours needed and currently planned
       const totalHoursNeeded = day.exams.reduce((sum, exam) => sum + exam.plannedHours, 0);
       
+      // If we have unused time, distribute it proportionally to exams
+      if (totalHoursNeeded < day.availableHours) {
+        const extraHours = day.availableHours - totalHoursNeeded;
+        
+        // Distribute extra hours proportionally
+        if (day.exams.length > 0) {
+          const extraPerExam = extraHours / day.exams.length;
+          day.exams.forEach(examDay => {
+            examDay.plannedHours += extraPerExam;
+            // Round to 1 decimal place for cleaner display
+            examDay.plannedHours = Math.round(examDay.plannedHours * 10) / 10;
+          });
+        }
+      }
       // If we need more hours than available, adjust proportionally
-      if (totalHoursNeeded > day.availableHours && day.exams.length > 0) {
+      else if (totalHoursNeeded > day.availableHours) {
         const ratio = day.availableHours / totalHoursNeeded;
         day.exams.forEach(examDay => {
           examDay.plannedHours = Math.round((examDay.plannedHours * ratio) * 10) / 10;

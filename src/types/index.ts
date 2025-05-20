@@ -6,9 +6,13 @@ export interface Exam {
   name: string;
   date: string; // ISO string format
   chapters: number;
+  pages?: number; // For page-based study
+  usePages?: boolean; // Flag to switch between chapters and pages
+  timePerUnit?: number; // Hours per chapter or page
   initialLevel: number; // 1-5
   priority: Priority;
   color?: string;
+  customReviewDays?: number; // Optional custom review days per exam
 }
 
 export interface StudyDay {
@@ -24,6 +28,7 @@ export interface StudyDayExam {
   plannedHours: number;
   actualHours: number;
   completed: boolean;
+  isReview?: boolean; // Flag for review days
 }
 
 export interface StudySession {

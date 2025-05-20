@@ -29,17 +29,18 @@ const ExamCard: React.FC<ExamCardProps> = ({ exam, compact = false, onEdit }) =>
     .filter(session => session.examId === exam.id)
     .reduce((total, session) => total + (session.duration / 60), 0);
     
-  // Count completed chapters from study days
-  const completedChapters = new Set<number>();
+  // Count completed chapters/pages from study days
+  const completedUnits = new Set<number>();
   studyDays.forEach(day => {
     day.exams
       .filter(dayExam => dayExam.examId === exam.id && dayExam.completed)
       .forEach(dayExam => {
-        dayExam.chapters.forEach(chapter => completedChapters.add(chapter));
+        dayExam.chapters.forEach(unit => completedUnits.add(unit));
       });
   });
   
-  const progress = exam.chapters > 0 ? (completedChapters.size / exam.chapters) * 100 : 0;
+  const totalUnits = exam.usePages ? exam.pages : exam.chapters;
+  const progress = totalUnits ? (completedUnits.size / totalUnits) * 100 : 0;
   
   const priorityColor = {
     low: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
@@ -91,10 +92,19 @@ const ExamCard: React.FC<ExamCardProps> = ({ exam, compact = false, onEdit }) =>
           </div>
           
           <div>
-            <p className="text-sm text-muted-foreground mb-1">Chapters</p>
-            <p className="font-medium">{exam.chapters}</p>
+            <p className="text-sm text-muted-foreground mb-1">
+              {exam.usePages ? 'Pages' : 'Chapters'}
+            </p>
+            <p className="font-medium">{exam.usePages ? exam.pages : exam.chapters}</p>
             <p className="text-sm text-muted-foreground mt-1">
-              {completedChapters.size} completed
+              {completedUnits.size} completed
+            </p>
+          </div>
+          
+          <div>
+            <p className="text-sm text-muted-foreground mb-1">Review Days</p>
+            <p className="font-medium">
+              {exam.customReviewDays !== undefined ? exam.customReviewDays : '3 (default)'}
             </p>
           </div>
           

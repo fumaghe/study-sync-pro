@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -13,6 +13,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from '@/components/ui/form';
 import {
   Select,
@@ -21,14 +22,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { addDays, format } from 'date-fns';
+import { useAppContext } from '@/contexts/AppContext';
 
 const formSchema = z.object({
   name: z.string().min(1, { message: 'Exam name is required' }),
   date: z.string().min(1, { message: 'Date is required' }),
-  chapters: z.coerce.number().min(1, { message: 'Minimum 1 chapter required' }),
+  usePages: z.boolean().default(false),
+  chapters: z.coerce.number().min(1, { message: 'Minimum 1 chapter required' }).optional(),
+  pages: z.coerce.number().min(1, { message: 'Minimum 1 page required' }).optional(),
+  timePerUnit: z.coerce.number().min(0.1, { message: 'Minimum time required' }).max(10, { message: 'Maximum 10 hours per unit' }),
   initialLevel: z.coerce.number().min(1).max(5, { message: 'Level must be between 1 and 5' }),
   priority: z.enum(['low', 'medium', 'high']),
+  customReviewDays: z.coerce.number().min(0).max(14, { message: 'Maximum 14 review days' }).optional(),
+}).refine((data) => {
+  if (data.usePages) {
+    return data.pages !== undefined && data.pages > 0;
+  }
+  return data.chapters !== undefined && data.chapters > 0;
+}, {
+  message: "Either chapters or pages must be provided based on the selected mode",
+  path: ["chapters"],
 });
 
 interface ExamFormProps {
@@ -41,34 +56,83 @@ const ExamForm: React.FC<ExamFormProps> = ({ onSubmit, initialData, onCancel }) 
   const today = new Date();
   const minDate = format(today, 'yyyy-MM-dd');
   const defaultDate = format(addDays(today, 14), 'yyyy-MM-dd');
+  const { settings, studyDays } = useAppContext();
+
+  // Check if this exam is already in study plan
+  const isInStudyPlan = initialData && studyDays.some(
+    day => day.exams.some(exam => exam.examId === initialData.id)
+  );
+  
+  // State for showing confirmation dialog
+  const [showConfirmation, setShowConfirmation] = useState(false);
   
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: initialData ? {
       ...initialData,
       date: initialData.date.split('T')[0], // Convert ISO string to YYYY-MM-DD
+      usePages: initialData.usePages || false,
+      chapters: initialData.chapters,
+      pages: initialData.pages || 0,
+      timePerUnit: initialData.timePerUnit || (initialData.usePages ? 0.5 : 1),
+      customReviewDays: initialData.customReviewDays || settings.reviewDays,
     } : {
       name: '',
       date: defaultDate,
+      usePages: false,
       chapters: 10,
+      pages: 100,
+      timePerUnit: 1, // Default 1h per chapter
       initialLevel: 3,
       priority: 'medium' as Priority,
+      customReviewDays: settings.reviewDays,
     },
   });
 
-  const handleSubmit = (values: z.infer<typeof formSchema>) => {
+  const usePages = form.watch('usePages');
+
+  const handleFormSubmit = (values: z.infer<typeof formSchema>) => {
+    // If exam is in study plan, show confirmation before proceeding
+    if (isInStudyPlan && !showConfirmation) {
+      setShowConfirmation(true);
+      return;
+    }
+    
     onSubmit({
       name: values.name,
       date: new Date(values.date).toISOString(),
-      chapters: values.chapters,
+      chapters: usePages ? 0 : (values.chapters || 0),
+      pages: usePages ? values.pages : undefined,
+      usePages: values.usePages,
+      timePerUnit: values.timePerUnit,
       initialLevel: values.initialLevel,
       priority: values.priority,
+      customReviewDays: values.customReviewDays,
     });
+    
+    setShowConfirmation(false);
   };
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+      <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-4">
+        {showConfirmation && (
+          <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 p-4 rounded-md mb-4">
+            <h4 className="text-amber-800 dark:text-amber-300 font-medium mb-2">Warning</h4>
+            <p className="text-sm text-amber-700 dark:text-amber-400 mb-3">
+              This exam already has study days assigned. Modifying it will require regenerating the study plan and you may lose progress data.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <Button type="button" variant="outline" size="sm" onClick={() => setShowConfirmation(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="destructive" size="sm">
+                Update Anyway
+              </Button>
+            </div>
+          </div>
+        )}
+
         <FormField
           control={form.control}
           name="name"
@@ -96,8 +160,32 @@ const ExamForm: React.FC<ExamFormProps> = ({ onSubmit, initialData, onCancel }) 
             </FormItem>
           )}
         />
+        
+        <FormField
+          control={form.control}
+          name="usePages"
+          render={({ field }) => (
+            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
+              <div className="space-y-0.5">
+                <FormLabel>Study Mode</FormLabel>
+                <FormDescription>
+                  Choose between chapter-based or page-based study
+                </FormDescription>
+              </div>
+              <FormControl>
+                <Switch
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                />
+              </FormControl>
+              <div className="text-sm font-medium">
+                {field.value ? 'Page-based' : 'Chapter-based'}
+              </div>
+            </FormItem>
+          )}
+        />
 
-        <div className="grid md:grid-cols-3 gap-4">
+        {!usePages ? (
           <FormField
             control={form.control}
             name="chapters"
@@ -111,7 +199,46 @@ const ExamForm: React.FC<ExamFormProps> = ({ onSubmit, initialData, onCancel }) 
               </FormItem>
             )}
           />
+        ) : (
+          <FormField
+            control={form.control}
+            name="pages"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Number of Pages</FormLabel>
+                <FormControl>
+                  <Input type="number" min="1" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
+        
+        <FormField
+          control={form.control}
+          name="timePerUnit"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Time per {usePages ? 'Page' : 'Chapter'} (hours)</FormLabel>
+              <FormControl>
+                <Input 
+                  type="number" 
+                  min="0.1" 
+                  max="10" 
+                  step="0.1" 
+                  {...field} 
+                />
+              </FormControl>
+              <FormDescription>
+                {usePages ? 'How many hours to study one page' : 'How many hours to study one chapter'}
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
+        <div className="grid md:grid-cols-3 gap-4">
           <FormField
             control={form.control}
             name="initialLevel"
@@ -144,6 +271,20 @@ const ExamForm: React.FC<ExamFormProps> = ({ onSubmit, initialData, onCancel }) 
                     <SelectItem value="high">High</SelectItem>
                   </SelectContent>
                 </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          
+          <FormField
+            control={form.control}
+            name="customReviewDays"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Review Days</FormLabel>
+                <FormControl>
+                  <Input type="number" min="0" max="14" {...field} />
+                </FormControl>
                 <FormMessage />
               </FormItem>
             )}
