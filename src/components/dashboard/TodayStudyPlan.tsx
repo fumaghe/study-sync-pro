@@ -1,5 +1,4 @@
-
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAppContext } from '@/contexts/AppContext';
 import { format } from 'date-fns';
@@ -9,13 +8,18 @@ import { Link } from 'react-router-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Exam } from '@/types';
+import { Label } from '@/components/ui/label';
+
+interface CompletionDialogState {
+  examId: string;
+  hours: number;
+  chapters: number[];
+  allUnits?: boolean;
+}
 
 const TodayStudyPlan: React.FC = () => {
   const { exams, studyDays, updateStudyDay } = useAppContext();
-  const [editingExam, setEditingExam] = React.useState<{
-    examId: string;
-    hours: number;
-  } | null>(null);
+  const [editingExam, setEditingExam] = useState<CompletionDialogState | null>(null);
   
   const today = format(new Date(), 'yyyy-MM-dd');
   const todayPlan = studyDays.find(day => day.date === today);
@@ -61,12 +65,14 @@ const TodayStudyPlan: React.FC = () => {
     if (!todayPlan) return;
     
     if (completed) {
-      // Open dialog to input actual hours
+      // Open dialog to input actual hours and chapters studied
       const examDay = todayPlan.exams.find(e => e.examId === examId);
       if (examDay) {
         setEditingExam({
           examId,
-          hours: examDay.plannedHours
+          hours: examDay.plannedHours,
+          chapters: [...examDay.chapters],
+          allUnits: examDay.chapters.length === 0 || examDay.isReview
         });
       }
     } else {
@@ -98,7 +104,9 @@ const TodayStudyPlan: React.FC = () => {
           return {
             ...exam,
             completed: true,
-            actualHours: editingExam.hours
+            actualHours: editingExam.hours,
+            // Keep original chapters for review days, otherwise use the ones from dialog
+            chapters: exam.isReview ? exam.chapters : editingExam.chapters
           };
         }
         return exam;
@@ -201,7 +209,7 @@ const TodayStudyPlan: React.FC = () => {
         )}
       </CardContent>
       
-      {/* Dialog for editing actual study progress */}
+      {/* Enhanced dialog for editing actual study progress */}
       <Dialog open={!!editingExam} onOpenChange={(open) => !open && setEditingExam(null)}>
         <DialogContent>
           <DialogHeader>
@@ -209,7 +217,7 @@ const TodayStudyPlan: React.FC = () => {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Hours Actually Studied</label>
+              <Label>Hours Actually Studied</Label>
               <Input 
                 type="number"
                 min="0"
@@ -220,6 +228,44 @@ const TodayStudyPlan: React.FC = () => {
                 )}
               />
             </div>
+            
+            {editingExam && !editingExam.allUnits && (
+              <div className="space-y-2">
+                <Label>
+                  {(() => {
+                    const exam = exams.find(e => e.id === editingExam?.examId);
+                    return exam?.usePages ? 'Pages Completed' : 'Chapters Completed';
+                  })()}
+                </Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {editingExam.chapters.map((unit, idx) => (
+                    <div key={idx} className="flex items-center space-x-2">
+                      <Checkbox 
+                        id={`unit-${unit}`}
+                        checked={true}
+                        onCheckedChange={(checked) => {
+                          if (checked === false && editingExam.chapters.length > 1) {
+                            setEditingExam(prev => {
+                              if (!prev) return prev;
+                              return {
+                                ...prev,
+                                chapters: prev.chapters.filter((_, i) => i !== idx)
+                              };
+                            });
+                          }
+                        }}
+                      />
+                      <Label htmlFor={`unit-${unit}`} className="text-sm">
+                        {(() => {
+                          const exam = exams.find(e => e.id === editingExam?.examId);
+                          return exam?.usePages ? `Page ${unit}` : `Chapter ${unit}`;
+                        })()}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingExam(null)}>

@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { useAppContext } from '@/contexts/AppContext';
@@ -13,15 +13,25 @@ import { FileText, RefreshCw } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Exam } from '@/types';
+import { Label } from '@/components/ui/label';
+
+interface EditDayState {
+  date: string;
+  examId: string;
+  hours: number;
+  currentChapters: number[];
+  isReview?: boolean;
+}
 
 const StudyPlanPage: React.FC = () => {
-  const { exams, studyDays, updateStudyDay, generateStudyPlan } = useAppContext();
-  const [editingDay, setEditingDay] = React.useState<{
-    date: string;
-    examId: string;
-    hours: number;
-    currentChapters: number[];
-  } | null>(null);
+  const { 
+    exams, 
+    studyDays, 
+    updateStudyDay, 
+    setShowRegenerationDialog,
+  } = useAppContext();
+  
+  const [editingDay, setEditingDay] = useState<EditDayState | null>(null);
   
   // Group study days by week for better visualization
   const groupedDays = studyDays.reduce<{ [weekKey: string]: typeof studyDays }>((acc, day) => {
@@ -58,6 +68,7 @@ const StudyPlanPage: React.FC = () => {
           examId,
           hours: examDay.plannedHours,
           currentChapters: [...examDay.chapters],
+          isReview: examDay.isReview
         });
       }
     } else {
@@ -92,7 +103,9 @@ const StudyPlanPage: React.FC = () => {
           return {
             ...exam,
             completed: true,
-            actualHours: editingDay.hours
+            actualHours: editingDay.hours,
+            // Only update chapters if not a review day
+            ...(exam.isReview ? {} : { chapters: editingDay.currentChapters })
           };
         }
         return exam;
@@ -120,7 +133,7 @@ const StudyPlanPage: React.FC = () => {
     <Layout>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold tracking-tight">Study Plan</h1>
-        <Button onClick={() => generateStudyPlan()}>
+        <Button onClick={() => setShowRegenerationDialog(true)}>
           <RefreshCw className="mr-2 h-4 w-4" />
           Regenerate Plan
         </Button>
@@ -149,7 +162,7 @@ const StudyPlanPage: React.FC = () => {
                 <p className="text-muted-foreground mb-6">
                   Click the button above to generate your personalized study plan
                 </p>
-                <Button onClick={() => generateStudyPlan()}>
+                <Button onClick={() => setShowRegenerationDialog(true)}>
                   Generate Study Plan
                 </Button>
               </CardContent>
@@ -252,7 +265,7 @@ const StudyPlanPage: React.FC = () => {
         </div>
       </div>
       
-      {/* Dialog for editing actual study progress */}
+      {/* Enhanced dialog for editing actual study progress */}
       <Dialog open={!!editingDay} onOpenChange={(open) => !open && setEditingDay(null)}>
         <DialogContent>
           <DialogHeader>
@@ -260,7 +273,7 @@ const StudyPlanPage: React.FC = () => {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">Hours Actually Studied</label>
+              <Label>Hours Actually Studied</Label>
               <Input 
                 type="number"
                 min="0"
@@ -271,6 +284,44 @@ const StudyPlanPage: React.FC = () => {
                 )}
               />
             </div>
+            
+            {editingDay && !editingDay.isReview && editingDay.currentChapters.length > 0 && (
+              <div className="space-y-2">
+                <Label>
+                  {(() => {
+                    const exam = exams.find(e => e.id === editingDay?.examId);
+                    return exam?.usePages ? 'Pages Completed' : 'Chapters Completed';
+                  })()}
+                </Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {editingDay.currentChapters.map((unit, idx) => (
+                    <div key={idx} className="flex items-center space-x-2">
+                      <Checkbox 
+                        id={`unit-${unit}`}
+                        checked={true}
+                        onCheckedChange={(checked) => {
+                          if (checked === false && editingDay.currentChapters.length > 1) {
+                            setEditingDay(prev => {
+                              if (!prev) return prev;
+                              return {
+                                ...prev,
+                                currentChapters: prev.currentChapters.filter((_, i) => i !== idx)
+                              };
+                            });
+                          }
+                        }}
+                      />
+                      <Label htmlFor={`unit-${unit}`} className="text-sm">
+                        {(() => {
+                          const exam = exams.find(e => e.id === editingDay?.examId);
+                          return exam?.usePages ? `Page ${unit}` : `Chapter ${unit}`;
+                        })()}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingDay(null)}>

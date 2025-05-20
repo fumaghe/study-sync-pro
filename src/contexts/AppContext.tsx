@@ -1,7 +1,14 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Exam, StudyDay, StudySession, Settings, Priority, StudyDayExam } from '@/types';
-import { addDays, differenceInDays, parseISO, format, isAfter, isSameDay } from 'date-fns';
+import { addDays, differenceInDays, parseISO, format, isAfter, isSameDay, isBefore } from 'date-fns';
 import { toast } from "sonner";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+
+interface RegenerationOptions {
+  keepCompletedSessions: boolean;
+}
 
 interface AppContextType {
   exams: Exam[];
@@ -14,8 +21,10 @@ interface AppContextType {
   updateStudyDay: (day: StudyDay) => void;
   addStudySession: (session: Omit<StudySession, 'id'>) => void;
   updateSettings: (settings: Settings) => void;
-  generateStudyPlan: () => void;
+  generateStudyPlan: (options?: RegenerationOptions) => void;
   resetData: () => void;
+  showRegenerationDialog: boolean;
+  setShowRegenerationDialog: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 const defaultSettings: Settings = {
@@ -57,6 +66,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [studyDays, setStudyDays] = useState<StudyDay[]>([]);
   const [studySessions, setStudySessions] = useState<StudySession[]>([]);
   const [settings, setSettings] = useState<Settings>(defaultSettings);
+  const [showRegenerationDialog, setShowRegenerationDialog] = useState(false);
 
   // Load data from localStorage on component mount
   useEffect(() => {
@@ -175,7 +185,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
-  // New function to recalculate future study days based on progress
+  // Enhanced function to recalculate future study days based on progress
   const recalculateFutureDays = (allDays: StudyDay[], updatedDayIndex: number) => {
     const updatedDay = allDays[updatedDayIndex];
     const date = parseISO(updatedDay.date);
@@ -221,13 +231,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       
       const { examObj, remainingUnits } = progress;
       const examDate = parseISO(examObj.date);
-      const timePerUnit = examObj.timePerUnit || (examObj.usePages ? 0.5 : 1);
       
       // Skip if exam date is in the past
       if (examDate < today) return;
       
-      // Calculate remaining days until exam (excluding exam day)
-      const daysUntilExam = differenceInDays(examDate, today) - 1;
+      // Calculate remaining days until exam (excluding exam day itself)
+      const daysUntilExam = differenceInDays(examDate, today);
       if (daysUntilExam <= 0) return;
       
       // Find review start day (days before exam)
@@ -235,29 +244,28 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         ? examObj.customReviewDays 
         : settings.reviewDays;
       
-      const reviewStartDay = Math.max(0, daysUntilExam - reviewDaysForExam);
-      
-      // Calculate units per day for remaining days
-      const availableDays = Math.max(1, reviewStartDay); // Ensure at least 1 day
-      const unitsPerDay = remainingUnits / availableDays;
+      const reviewStartDay = Math.max(0, daysUntilExam - reviewDaysForExam - 1); // -1 to exclude exam day
       
       // Calculate actual time needed per unit
       let actualTimePerUnit: number;
       
       if (examObj.usePages) {
         // For pages: timePerUnit = pages per hour
-        actualTimePerUnit = 1 / (examObj.timePerUnit || 20); // Default 20 pages/hour
+        actualTimePerUnit = 1 / (examObj.timePerUnit || 20); // Convert pages/hour to hours/page
       } else {
         // For chapters: timePerUnit = hours per chapter
-        actualTimePerUnit = examObj.timePerUnit || 1;
+        actualTimePerUnit = examObj.timePerUnit || 1; // Default: 1h/chapter
       }
+      
+      // Calculate how many hours of study are needed in total
+      const totalHoursNeeded = remainingUnits * actualTimePerUnit;
       
       // Find all future days for this exam
       let futureExamDays = allDays.filter((day, index) => {
         const dayDate = parseISO(day.date);
         return index > updatedDayIndex && // Only consider days after the updated day
                !isSameDay(dayDate, examDate) && // Skip the exam day itself
-               dayDate <= examDate && // Only consider days before or on exam date
+               isBefore(dayDate, examDate) && // Only consider days before exam date
                day.available; // Only consider available days
       });
       
@@ -266,26 +274,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return parseISO(a.date).getTime() - parseISO(b.date).getTime();
       });
       
+      // Determine optimal start day based on study load
+      // Skip days if we have more than needed
+      const totalAvailableHours = futureExamDays.reduce((sum, day) => sum + day.availableHours, 0);
+      const daysNeeded = Math.min(
+        Math.ceil(totalHoursNeeded / (settings.defaultDailyHours * 0.8)), // Assume 80% efficiency
+        futureExamDays.length
+      );
+      
+      // If we have more days than needed, skip the earliest ones
+      if (futureExamDays.length > daysNeeded * 1.5 && daysNeeded > 0) {
+        const daysToSkip = Math.floor((futureExamDays.length - daysNeeded) * 0.7); // Skip 70% of extra days
+        futureExamDays = futureExamDays.slice(daysToSkip);
+      }
+      
       // Calculate smart distribution
       let remainingToDistribute = remainingUnits;
       let nextUnitToAssign = Array.from(progress.completedUnits).length + 1;
       
-      // Determine if this is a small exam far in the future
+      // For small exams far in the future, skip some days at the beginning
       const isSmallExamFarAway = 
         remainingUnits < 30 && // Small number of units
-        daysUntilExam > 30; // More than a month away
+        daysUntilExam > 30 && // More than a month away
+        futureExamDays.length > 15; // Have enough days to optimize
       
-      // For small exams far in the future, skip some days at the beginning
       if (isSmallExamFarAway) {
-        const daysToSkip = Math.floor(daysUntilExam * 0.6); // Skip 60% of days
+        const daysToSkip = Math.floor(futureExamDays.length * 0.6); // Skip 60% of days for small far exams
         futureExamDays = futureExamDays.slice(daysToSkip);
       }
       
       // If we have very few days left, prioritize more units per day
       const compressedSchedule = futureExamDays.length < remainingUnits / 5;
       
+      // Calculate average units per day for balanced distribution
+      const avgUnitsPerDay = remainingToDistribute / Math.max(1, futureExamDays.length - reviewDaysForExam);
+      
       // Distribute remaining units across future days
       futureExamDays.forEach((day, index) => {
+        // Check if this is a review day (close to exam)
         const isReviewDay = index >= futureExamDays.length - reviewDaysForExam;
         
         // Find the existing exam entry for this day, or create a new one
@@ -307,13 +333,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             });
           }
         } else if (remainingToDistribute > 0) {
-          // Calculate units for this day based on availability
-          const maxUnitsForTime = day.availableHours / actualTimePerUnit;
+          // Calculate units for this day based on availability and balance
+          const maxUnitsForTime = Math.floor(day.availableHours / actualTimePerUnit);
           
           // Adjust units per day if we're on a compressed schedule
           let unitsToday = compressedSchedule
             ? Math.min(Math.ceil(remainingToDistribute / Math.max(1, futureExamDays.length - index - reviewDaysForExam)), maxUnitsForTime)
-            : Math.min(Math.ceil(unitsPerDay), remainingToDistribute, maxUnitsForTime);
+            : Math.min(Math.ceil(avgUnitsPerDay), remainingToDistribute, maxUnitsForTime);
           
           // Ensure we assign at least one unit per day if there are units left
           unitsToday = Math.max(1, unitsToday);
@@ -379,11 +405,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
-  const generateStudyPlan = () => {
+  const generateStudyPlan = (options?: RegenerationOptions) => {
     if (exams.length === 0) {
       toast.error("Add some exams before generating a study plan!");
       return;
     }
+
+    // Get current completed sessions if we're keeping them
+    const completedSessions = options?.keepCompletedSessions 
+      ? studyDays.flatMap(day => 
+          day.exams
+            .filter(exam => exam.completed)
+            .map(exam => ({ day: day.date, exam }))
+        )
+      : [];
 
     // Clear existing study plan - fix for regeneration issue
     setStudyDays([]);
@@ -416,6 +451,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       });
     }
     
+    // If keeping completed sessions, add them back
+    if (options?.keepCompletedSessions && completedSessions.length > 0) {
+      completedSessions.forEach(({ day: dayDate, exam }) => {
+        const dayIndex = newStudyDays.findIndex(d => d.date === dayDate);
+        if (dayIndex >= 0) {
+          newStudyDays[dayIndex].exams.push(exam);
+        }
+      });
+    }
+    
     // Calculate study load for each exam
     exams.forEach(exam => {
       const examDate = parseISO(exam.date);
@@ -433,28 +478,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return isSameDay(dayDate, examDate);
       });
       
-      if (examDayIndex >= 0) {
-        // Mark the exam day as not available for this exam
-        // We still keep it available for other exams that might be later
-        // Just don't assign this exam to this day
+      // Skip if this exam has completed sessions and we're keeping them
+      if (options?.keepCompletedSessions) {
+        const hasCompletedSessions = completedSessions.some(
+          session => session.exam.examId === exam.id
+        );
+        
+        if (hasCompletedSessions) {
+          // Skip this exam as it has completed sessions we want to keep
+          return;
+        }
       }
       
-      // Calculate available days for study (excluding exam day and review days)
-      const reviewStartDay = Math.max(0, daysUntilExam - reviewDaysForExam - 1);
+      // Get available days excluding exam day
+      let availableDays = newStudyDays.filter((day, index) => {
+        if (index === examDayIndex) return false; // Exclude exam day
+        
+        const dayDate = parseISO(day.date);
+        return dayDate < examDate && // Before exam date
+               day.available && // Is available
+               !options?.keepCompletedSessions || // If not keeping completed
+               (options.keepCompletedSessions && 
+                !day.exams.some(e => e.completed)); // No completed exams if keeping
+      });
       
-      // Skip days at the beginning for small exams far in the future
-      const isSmallExam = (exam.usePages ? (exam.pages || 0) : exam.chapters) < 30;
-      const isFarAway = daysUntilExam > 30;
-      
-      let startDayIndex = 0;
-      if (isSmallExam && isFarAway) {
-        // For small exams far away, start studying later
-        startDayIndex = Math.floor(reviewStartDay * 0.4); // Skip 40% of available days
-      }
-      
-      const availableDays = Math.max(1, reviewStartDay - startDayIndex);
-      
-      // Calculate study units (chapters or pages)
+      // Calculate total study units (chapters or pages)
       const studyUnits = exam.usePages ? (exam.pages || 0) : exam.chapters;
       
       // Get time needed per unit
@@ -468,63 +516,97 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         timePerUnit = exam.timePerUnit || 1; // Default: 1h/chapter
       }
       
-      const unitsPerDay = studyUnits / availableDays;
-
-      // Distribute chapters/pages across available days
-      let remainingUnits = studyUnits;
+      // Calculate total study hours needed
+      const totalStudyHoursNeeded = studyUnits * timePerUnit;
       
-      for (let i = startDayIndex; i < newStudyDays.length; i++) {
-        const currentDay = newStudyDays[i];
-        const dayDate = parseISO(currentDay.date);
-        
-        // Skip if this is the exam day
-        if (isSameDay(dayDate, examDate)) {
-          continue;
-        }
-        
-        if (!currentDay.available) continue;
-
-        // Calculate days from today to this day
-        const daysFromToday = differenceInDays(dayDate, today);
-        
-        // Skip days before we start studying
-        if (daysFromToday < startDayIndex) continue;
-        
-        // Check if this is a review day
-        const isReviewDay = daysFromToday >= reviewStartDay && daysFromToday < daysUntilExam;
-        
-        let unitsToday = 0;
-        
-        if (!isReviewDay && remainingUnits > 0 && daysFromToday < daysUntilExam) {
-          // Calculate units for today based on available time
-          const maxUnitsForTime = currentDay.availableHours / timePerUnit;
-          unitsToday = Math.min(Math.ceil(unitsPerDay), remainingUnits, maxUnitsForTime);
-          remainingUnits -= unitsToday;
-        }
-        
-        if (unitsToday > 0 || isReviewDay) {
-          // Calculate weight based on priority and initial level
-          const weight = priorityWeight(exam.priority) * (6 - exam.initialLevel);
-          
-          // Calculate hours based on weight and units (chapters or pages)
-          const hoursNeeded = isReviewDay ? 1 : Math.max(0.5, unitsToday * timePerUnit);
-          
-          // Add exam to this day
-          const dayExam: StudyDayExam = {
-            examId: exam.id,
-            chapters: isReviewDay ? [] : Array.from({ length: unitsToday }, (_, j) => {
-              const completedUnits = studyUnits - remainingUnits - unitsToday;
-              return completedUnits + j + 1;
-            }),
-            plannedHours: hoursNeeded,
-            actualHours: 0,
-            completed: false,
-            isReview: isReviewDay
-          };
-
-          currentDay.exams.push(dayExam);
+      // Calculate optimal number of study days needed (accounting for efficiency)
+      const avgStudyHoursPerDay = settings.defaultDailyHours * 0.8; // Assume 80% efficiency
+      const optimalStudyDaysNeeded = Math.ceil(totalStudyHoursNeeded / avgStudyHoursPerDay);
+      
+      // Skip days at the beginning if we have more than needed
+      let startDayIndex = 0;
+      
+      // For small exams far in the future, start studying later
+      const isSmallExam = studyUnits < 30;
+      const isFarAway = daysUntilExam > 30;
+      
+      if (availableDays.length > optimalStudyDaysNeeded * 1.5) {
+        // We have 50% more days than needed, so we can skip some
+        const daysToSkip = Math.floor((availableDays.length - optimalStudyDaysNeeded) * 0.7);
+        startDayIndex = isSmallExam && isFarAway ? daysToSkip : Math.floor(daysToSkip * 0.4);
+      }
+      
+      // Take only the days we need, starting from calculated index
+      availableDays = availableDays.slice(startDayIndex);
+      
+      // Calculate review start index
+      const reviewStartIndex = Math.max(0, availableDays.length - reviewDaysForExam);
+      
+      // Calculate study days (non-review days)
+      const studyDaysAvailable = availableDays.slice(0, reviewStartIndex);
+      
+      if (studyDaysAvailable.length === 0 && reviewDaysForExam > 0) {
+        // If we don't have study days but do have review days,
+        // use some review days as study days
+        const daysToConvert = Math.min(Math.ceil(reviewDaysForExam / 2), availableDays.length);
+        for (let i = 0; i < daysToConvert; i++) {
+          studyDaysAvailable.push(availableDays[i]);
         }
       }
+      
+      // Calculate units per study day
+      let unitsPerDay = studyDaysAvailable.length > 0
+        ? Math.ceil(studyUnits / studyDaysAvailable.length)
+        : 0;
+      
+      // Ensure at least 1 unit per day
+      unitsPerDay = Math.max(1, unitsPerDay);
+      
+      // Distribute units across study days
+      let remainingUnits = studyUnits;
+      let currentUnit = 1;
+      
+      // Distribute study content evenly
+      studyDaysAvailable.forEach(day => {
+        if (remainingUnits <= 0) return;
+        
+        const maxUnitsForToday = Math.min(
+          unitsPerDay,
+          remainingUnits,
+          Math.floor(day.availableHours / timePerUnit)
+        );
+        
+        const todayUnits = Array.from(
+          { length: maxUnitsForToday },
+          (_, i) => currentUnit + i
+        );
+        
+        const hoursNeeded = Math.max(0.5, maxUnitsForToday * timePerUnit);
+        
+        day.exams.push({
+          examId: exam.id,
+          chapters: todayUnits,
+          plannedHours: hoursNeeded,
+          actualHours: 0,
+          completed: false
+        });
+        
+        currentUnit += maxUnitsForToday;
+        remainingUnits -= maxUnitsForToday;
+      });
+      
+      // Add review days
+      const reviewDays = availableDays.slice(reviewStartIndex);
+      reviewDays.forEach(day => {
+        day.exams.push({
+          examId: exam.id,
+          chapters: [],
+          plannedHours: 1, // Default 1 hour for review
+          actualHours: 0,
+          completed: false,
+          isReview: true
+        });
+      });
     });
     
     // Maximize and optimize daily load - distribute remaining time proportionally
@@ -584,8 +666,82 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addStudySession,
     updateSettings,
     generateStudyPlan,
-    resetData
+    resetData,
+    showRegenerationDialog,
+    setShowRegenerationDialog
   };
 
-  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+  return (
+    <AppContext.Provider value={value}>
+      {children}
+      <RegenerationDialog />
+    </AppContext.Provider>
+  );
+};
+
+// New component for regeneration dialog
+const RegenerationDialog: React.FC = () => {
+  const { showRegenerationDialog, setShowRegenerationDialog, generateStudyPlan } = useAppContext();
+  const [keepCompleted, setKeepCompleted] = useState(true);
+  
+  const handleRegenerate = (keep: boolean) => {
+    generateStudyPlan({ keepCompletedSessions: keep });
+    setShowRegenerationDialog(false);
+  };
+
+  return (
+    <Dialog open={showRegenerationDialog} onOpenChange={setShowRegenerationDialog}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Regenerate Study Plan</DialogTitle>
+          <DialogDescription>
+            Choose how you want to regenerate your study plan
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="py-4 space-y-4">
+          <div className="flex items-start space-x-3">
+            <Checkbox
+              id="keep-completed"
+              checked={keepCompleted}
+              onCheckedChange={(checked) => setKeepCompleted(checked === true)}
+            />
+            <div>
+              <label htmlFor="keep-completed" className="font-medium text-sm">
+                Keep completed sessions
+              </label>
+              <p className="text-muted-foreground text-xs">
+                The plan will be recalculated only for future days, preserving your completed study sessions.
+              </p>
+            </div>
+          </div>
+          
+          <div className="flex items-start space-x-3">
+            <Checkbox
+              id="regenerate-all"
+              checked={!keepCompleted}
+              onCheckedChange={(checked) => setKeepCompleted(!checked)}
+            />
+            <div>
+              <label htmlFor="regenerate-all" className="font-medium text-sm">
+                Regenerate everything
+              </label>
+              <p className="text-muted-foreground text-xs">
+                The existing plan will be completely erased and recreated from scratch.
+              </p>
+            </div>
+          </div>
+        </div>
+        
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setShowRegenerationDialog(false)}>
+            Cancel
+          </Button>
+          <Button onClick={() => handleRegenerate(keepCompleted)}>
+            Regenerate Plan
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 };

@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -26,25 +26,30 @@ import { Switch } from '@/components/ui/switch';
 import { addDays, format } from 'date-fns';
 import { useAppContext } from '@/contexts/AppContext';
 
-const formSchema = z.object({
+// Define separate schemas for page-based and chapter-based modes
+const baseSchema = z.object({
   name: z.string().min(1, { message: 'Exam name is required' }),
   date: z.string().min(1, { message: 'Date is required' }),
   usePages: z.boolean().default(false),
-  chapters: z.coerce.number().min(1, { message: 'Minimum 1 chapter required' }).optional(),
-  pages: z.coerce.number().min(1, { message: 'Minimum 1 page required' }).optional(),
-  timePerUnit: z.coerce.number().min(0.1, { message: 'Minimum value required' }).max(10, { message: 'Maximum value is 10' }),
   initialLevel: z.coerce.number().min(1).max(5, { message: 'Level must be between 1 and 5' }),
   priority: z.enum(['low', 'medium', 'high']),
   customReviewDays: z.coerce.number().min(0).max(14, { message: 'Maximum 14 review days' }).optional(),
-}).refine((data) => {
-  if (data.usePages) {
-    return data.pages !== undefined && data.pages > 0;
-  }
-  return data.chapters !== undefined && data.chapters > 0;
-}, {
-  message: "Either chapters or pages must be provided based on the selected mode",
-  path: ["chapters"],
 });
+
+const formSchema = z.discriminatedUnion('usePages', [
+  // Pages mode
+  baseSchema.extend({
+    usePages: z.literal(true),
+    pages: z.coerce.number().min(1, { message: 'Minimum 1 page required' }),
+    timePerUnit: z.coerce.number().min(1, { message: 'Must read at least 1 page per hour' }).max(100, { message: 'Maximum 100 pages per hour' }),
+  }),
+  // Chapters mode
+  baseSchema.extend({
+    usePages: z.literal(false),
+    chapters: z.coerce.number().min(1, { message: 'Minimum 1 chapter required' }),
+    timePerUnit: z.coerce.number().min(0.1, { message: 'Must spend at least 0.1 hours per chapter' }).max(10, { message: 'Maximum 10 hours per chapter' }),
+  })
+]);
 
 interface ExamFormProps {
   onSubmit: (data: Omit<Exam, 'id'>) => void;
@@ -74,7 +79,7 @@ const ExamForm: React.FC<ExamFormProps> = ({ onSubmit, initialData, onCancel }) 
       usePages: initialData.usePages || false,
       chapters: initialData.chapters,
       pages: initialData.pages || 0,
-      timePerUnit: initialData.timePerUnit || (initialData.usePages ? 0.5 : 1),
+      timePerUnit: initialData.timePerUnit || (initialData.usePages ? 20 : 1), // Default: 20 pages/hour or 1 hour/chapter
       customReviewDays: initialData.customReviewDays || settings.reviewDays,
     } : {
       name: '',
@@ -90,6 +95,18 @@ const ExamForm: React.FC<ExamFormProps> = ({ onSubmit, initialData, onCancel }) 
   });
 
   const usePages = form.watch('usePages');
+  
+  // Update timePerUnit default when switching modes
+  useEffect(() => {
+    const currentValue = form.getValues('timePerUnit');
+    if (usePages && currentValue < 1) {
+      // Switching to pages mode - default 20 pages per hour
+      form.setValue('timePerUnit', 20);
+    } else if (!usePages && currentValue > 10) {
+      // Switching to chapters mode - default 1 hour per chapter
+      form.setValue('timePerUnit', 1);
+    }
+  }, [usePages, form]);
 
   const handleFormSubmit = (values: z.infer<typeof formSchema>) => {
     // If exam is in study plan, show confirmation before proceeding
@@ -226,7 +243,7 @@ const ExamForm: React.FC<ExamFormProps> = ({ onSubmit, initialData, onCancel }) 
               <FormControl>
                 <Input 
                   type="number" 
-                  min="0.1" 
+                  min={usePages ? "1" : "0.1"} 
                   max={usePages ? "100" : "10"} 
                   step="0.1" 
                   {...field} 
@@ -234,8 +251,8 @@ const ExamForm: React.FC<ExamFormProps> = ({ onSubmit, initialData, onCancel }) 
               </FormControl>
               <FormDescription>
                 {usePages 
-                  ? 'How many pages you can study in one hour' 
-                  : 'How many hours to study one chapter'}
+                  ? 'How many pages you can complete in one hour (speed)' 
+                  : 'How many hours needed to study one chapter (intensity)'}
               </FormDescription>
               <FormMessage />
             </FormItem>
@@ -289,6 +306,9 @@ const ExamForm: React.FC<ExamFormProps> = ({ onSubmit, initialData, onCancel }) 
                 <FormControl>
                   <Input type="number" min="0" max="14" {...field} />
                 </FormControl>
+                <FormDescription>
+                  Days before exam dedicated to review
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}
