@@ -51,6 +51,9 @@ const formSchema = z.discriminatedUnion('usePages', [
   })
 ]);
 
+// Create type from the schema
+type FormValues = z.infer<typeof formSchema>;
+
 interface ExamFormProps {
   onSubmit: (data: Omit<Exam, 'id'>) => void;
   initialData?: Exam;
@@ -71,27 +74,52 @@ const ExamForm: React.FC<ExamFormProps> = ({ onSubmit, initialData, onCancel }) 
   // State for showing confirmation dialog
   const [showConfirmation, setShowConfirmation] = useState(false);
   
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: initialData ? {
-      ...initialData,
-      date: initialData.date.split('T')[0], // Convert ISO string to YYYY-MM-DD
-      usePages: initialData.usePages || false,
-      chapters: initialData.chapters,
-      pages: initialData.pages || 0,
-      timePerUnit: initialData.timePerUnit || (initialData.usePages ? 20 : 1), // Default: 20 pages/hour or 1 hour/chapter
-      customReviewDays: initialData.customReviewDays || settings.reviewDays,
-    } : {
+  // Prepare default values based on exam mode
+  const getDefaultValues = (): FormValues => {
+    if (initialData) {
+      const isPageMode = initialData.usePages || false;
+      
+      if (isPageMode) {
+        return {
+          name: initialData.name,
+          date: initialData.date.split('T')[0],
+          usePages: true,
+          pages: initialData.pages || 0,
+          timePerUnit: initialData.timePerUnit || 20, // Default: 20 pages/hour
+          initialLevel: initialData.initialLevel,
+          priority: initialData.priority,
+          customReviewDays: initialData.customReviewDays || settings.reviewDays,
+        };
+      } else {
+        return {
+          name: initialData.name,
+          date: initialData.date.split('T')[0],
+          usePages: false,
+          chapters: initialData.chapters,
+          timePerUnit: initialData.timePerUnit || 1, // Default: 1 hour/chapter
+          initialLevel: initialData.initialLevel,
+          priority: initialData.priority,
+          customReviewDays: initialData.customReviewDays || settings.reviewDays,
+        };
+      }
+    }
+    
+    // Default for new exam
+    return {
       name: '',
       date: defaultDate,
       usePages: false,
       chapters: 10,
-      pages: 100,
       timePerUnit: 1, // Default 1h per chapter
       initialLevel: 3,
       priority: 'medium' as Priority,
       customReviewDays: settings.reviewDays,
-    },
+    };
+  };
+  
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: getDefaultValues(),
   });
 
   const usePages = form.watch('usePages');
@@ -106,9 +134,22 @@ const ExamForm: React.FC<ExamFormProps> = ({ onSubmit, initialData, onCancel }) 
       // Switching to chapters mode - default 1 hour per chapter
       form.setValue('timePerUnit', 1);
     }
+    
+    // Reset the fields according to the mode
+    if (usePages) {
+      // If switching to pages mode
+      form.setValue('pages', form.getValues('chapters') || 100);
+      // Remove chapters field as it doesn't exist in this mode
+      form.unregister('chapters');
+    } else {
+      // If switching to chapters mode
+      form.setValue('chapters', form.getValues('pages') || 10);
+      // Remove pages field as it doesn't exist in this mode
+      form.unregister('pages');
+    }
   }, [usePages, form]);
 
-  const handleFormSubmit = (values: z.infer<typeof formSchema>) => {
+  const handleFormSubmit = (values: FormValues) => {
     // If exam is in study plan, show confirmation before proceeding
     if (isInStudyPlan && !showConfirmation) {
       setShowConfirmation(true);
@@ -118,8 +159,8 @@ const ExamForm: React.FC<ExamFormProps> = ({ onSubmit, initialData, onCancel }) 
     onSubmit({
       name: values.name,
       date: new Date(values.date).toISOString(),
-      chapters: usePages ? 0 : (values.chapters || 0),
-      pages: usePages ? values.pages : undefined,
+      chapters: !values.usePages ? values.chapters : 0,
+      pages: values.usePages ? values.pages : undefined,
       usePages: values.usePages,
       timePerUnit: values.timePerUnit,
       initialLevel: values.initialLevel,
