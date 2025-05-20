@@ -32,7 +32,7 @@ const StudyCalendar: React.FC = () => {
       if (!day.available) return 'bg-muted text-muted-foreground';
       if (day.exams.length > 0) return 'bg-primary/25 font-semibold';
     }
-    return undefined;
+    return '';
   };
   
   // Handle date selection in calendar
@@ -87,10 +87,17 @@ const StudyCalendar: React.FC = () => {
           onSelect={handleDateSelect}
           className="p-3 pointer-events-auto"
           modifiers={{
-            customStyles: (date) => getDayClass(date) !== undefined,
+            customStyles: (date) => getDayClass(date) !== '',
           }}
-          modifiersClassNames={{
-            customStyles: (date) => getDayClass(date) || '',
+          modifiersStyles={{
+            customStyles: {
+              fontWeight: 'bold',
+            },
+          }}
+          classNames={{
+            day_today: "bg-accent text-accent-foreground",
+            day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
+            day: (date) => getDayClass(date),
           }}
         />
         

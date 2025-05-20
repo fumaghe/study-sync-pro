@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Exam, StudyDay, StudySession, Settings, Priority } from '@/types';
+import { Exam, StudyDay, StudySession, Settings, Priority, StudyDayExam } from '@/types';
 import { addDays, differenceInDays, parseISO, format, isAfter } from 'date-fns';
 import { toast } from "sonner";
 
