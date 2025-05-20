@@ -87,26 +87,34 @@ const StudyCalendar: React.FC = () => {
           onSelect={handleDateSelect}
           className="p-3 pointer-events-auto"
           modifiers={{
-            customStyles: (date) => getDayClass(date) !== '',
+            highlighted: (date) => getDayClass(date) !== '',
+            unavailable: (date) => {
+              const dateString = format(date, 'yyyy-MM-dd');
+              const day = studyDays.find((d) => d.date === dateString);
+              return day ? !day.available : false;
+            },
+            hasExams: (date) => {
+              const dateString = format(date, 'yyyy-MM-dd');
+              const day = studyDays.find((d) => d.date === dateString);
+              return day ? day.exams.length > 0 : false;
+            }
           }}
           modifiersStyles={{
-            customStyles: {
+            highlighted: {
               fontWeight: 'bold',
             },
+            unavailable: {
+              color: 'var(--muted-foreground)',
+              backgroundColor: 'var(--muted)',
+            },
+            hasExams: {
+              backgroundColor: 'var(--primary-25)',
+              fontWeight: 'bold',
+            }
           }}
           classNames={{
             day_today: "bg-accent text-accent-foreground",
             day_selected: "bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground",
-            // Use a custom class name approach instead of a function for day
-            day: "custom-calendar-day",
-          }}
-          // Add a DayPicker component prop to customize each day's class
-          components={{
-            // @ts-ignore - Working around the type restrictions
-            Day: (props: any) => {
-              const customClass = getDayClass(props.date);
-              return <props.component {...props} className={`${props.className} ${customClass}`} />;
-            },
           }}
         />
         
