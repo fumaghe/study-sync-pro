@@ -1,0 +1,165 @@
+
+import React from 'react';
+import Layout from '@/components/layout/Layout';
+import { Button } from '@/components/ui/button';
+import { useAppContext } from '@/contexts/AppContext';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import StudyCalendar from '@/components/calendar/StudyCalendar';
+import { format, parseISO } from 'date-fns';
+import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
+
+const StudyPlanPage: React.FC = () => {
+  const { exams, studyDays, updateStudyDay, generateStudyPlan } = useAppContext();
+  
+  // Group study days by week for better visualization
+  const groupedDays = studyDays.reduce<{ [weekKey: string]: typeof studyDays }>((acc, day) => {
+    const date = parseISO(day.date);
+    const weekStart = new Date(date);
+    weekStart.setDate(date.getDate() - date.getDay());
+    const weekKey = format(weekStart, 'yyyy-MM-dd');
+    
+    if (!acc[weekKey]) {
+      acc[weekKey] = [];
+    }
+    
+    acc[weekKey].push(day);
+    return acc;
+  }, {});
+  
+  // Sort weeks chronologically
+  const sortedWeeks = Object.keys(groupedDays).sort();
+  
+  const handleToggleCompletion = (day: string, examId: string, completed: boolean) => {
+    const studyDay = studyDays.find(d => d.date === day);
+    if (!studyDay) return;
+    
+    const updatedDay = {
+      ...studyDay,
+      exams: studyDay.exams.map(exam => {
+        if (exam.examId === examId) {
+          return {
+            ...exam,
+            completed
+          };
+        }
+        return exam;
+      })
+    };
+    
+    updateStudyDay(updatedDay);
+  };
+  
+  return (
+    <Layout>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold tracking-tight">Study Plan</h1>
+        <Button onClick={() => generateStudyPlan()}>
+          Regenerate Plan
+        </Button>
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="md:col-span-1">
+          <StudyCalendar />
+        </div>
+        
+        <div className="md:col-span-2">
+          {sortedWeeks.length === 0 ? (
+            <Card>
+              <CardContent className="py-16 text-center">
+                <h2 className="text-2xl font-medium mb-2">No study plan yet</h2>
+                <p className="text-muted-foreground mb-6">
+                  Click the button above to generate your personalized study plan
+                </p>
+                <Button onClick={() => generateStudyPlan()}>
+                  Generate Study Plan
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-6">
+              {sortedWeeks.map(weekKey => {
+                const days = groupedDays[weekKey];
+                const weekStart = parseISO(weekKey);
+                const weekEnd = new Date(weekStart);
+                weekEnd.setDate(weekStart.getDate() + 6);
+                
+                return (
+                  <Card key={weekKey}>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-lg">
+                        Week of {format(weekStart, 'MMMM d')} - {format(weekEnd, 'MMMM d, yyyy')}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        {days.map(day => {
+                          const dayDate = parseISO(day.date);
+                          
+                          if (!day.available || day.exams.length === 0) {
+                            return (
+                              <div key={day.date} className="py-2 px-4 rounded-md border border-dashed flex items-center">
+                                <span className="text-muted-foreground">
+                                  {format(dayDate, 'EEEE, MMM d')} - {!day.available ? 'Day Off' : 'No study tasks'}
+                                </span>
+                              </div>
+                            );
+                          }
+                          
+                          return (
+                            <div key={day.date} className="border rounded-md overflow-hidden">
+                              <div className="bg-muted/50 py-2 px-4 flex justify-between items-center">
+                                <span className="font-medium">{format(dayDate, 'EEEE, MMM d')}</span>
+                                <span className="text-sm text-muted-foreground">{day.availableHours} hours available</span>
+                              </div>
+                              <div className="divide-y">
+                                {day.exams.map(examDay => {
+                                  const exam = exams.find(e => e.id === examDay.examId);
+                                  if (!exam) return null;
+                                  
+                                  return (
+                                    <div key={exam.id} className="py-3 px-4 flex items-center justify-between">
+                                      <div className="flex items-center gap-3">
+                                        <Checkbox 
+                                          id={`${day.date}-${exam.id}`}
+                                          checked={examDay.completed}
+                                          onCheckedChange={(checked) => 
+                                            handleToggleCompletion(day.date, exam.id, checked === true)
+                                          }
+                                        />
+                                        <div className={`${examDay.completed ? 'line-through text-muted-foreground' : ''}`}>
+                                          <p className="font-medium">{exam.name}</p>
+                                          {examDay.chapters.length > 0 ? (
+                                            <p className="text-xs text-muted-foreground">
+                                              Chapters: {examDay.chapters.join(', ')}
+                                            </p>
+                                          ) : (
+                                            <p className="text-xs text-muted-foreground">Review day</p>
+                                          )}
+                                        </div>
+                                      </div>
+                                      <Badge variant="outline">
+                                        {examDay.plannedHours} hours
+                                      </Badge>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </Layout>
+  );
+};
+
+export default StudyPlanPage;
