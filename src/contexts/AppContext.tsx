@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Exam, StudyDay, StudySession, Settings, Priority, StudyDayExam } from '@/types';
-import { addDays, differenceInDays, parseISO, format, isAfter, isSameDay, isBefore, isEqual, isSameOrAfter } from 'date-fns';
+import { addDays, differenceInDays, parseISO, format, isAfter, isSameDay, isBefore, isEqual } from 'date-fns';
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -551,35 +551,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
       
       // Calculate review days based on exam-specific settings or default
-      const reviewDaysForExam = exam.customReviewDays !== undefined ? exam.customReviewDays : settings.reviewDays;
-      
+      const reviewDaysForExam = exam.customReviewDays !== undefined
+        ? exam.customReviewDays
+        : settings.reviewDays;
+
       // Respect the study start date if specified
-      const studyStartDate = exam.startStudyDate ? parseISO(exam.startStudyDate) : today;
-      
+      const studyStartDate = exam.startStudyDate
+        ? parseISO(exam.startStudyDate)
+        : today;
+
       // Get available days excluding exam day and respecting start date
       let availableDays = newStudyDays.filter(day => {
         const dayDate = parseISO(day.date);
-        return !isSameDay(dayDate, examDate) && // Skip the exam day itself
-               isBefore(dayDate, examDate) && // Only before exam date
-               isSameOrAfter(dayDate, studyStartDate) && // Only on or after start study date
-               day.available && // Is available
-               !day.exams.some(e => e.examId === exam.id); // No existing entries for this exam
+        return !isSameDay(dayDate, examDate) &&
+              isBefore(dayDate, examDate) &&
+              (isAfter(dayDate, studyStartDate) || isEqual(dayDate, studyStartDate)) &&
+              day.available &&
+              !day.exams.some(e => e.examId === exam.id);
       });
-      
+
       // Calculate total study units (chapters or pages)
       const studyUnits = exam.usePages ? (exam.pages || 0) : exam.chapters;
-      
+
       // Get time needed per unit
       let timePerUnit: number;
       if (exam.usePages) {
-        // For pages: timePerUnit = pages per hour
-        // So we need to convert to hours per page for calculations
+        // For pages: timePerUnit = pages per hour, so convert to hours per page
         timePerUnit = 1 / (exam.timePerUnit || 20); // Default 20 pages/hour
       } else {
         // For chapters: timePerUnit = hours per chapter
         timePerUnit = exam.timePerUnit || 1; // Default: 1h/chapter
-      }
-      
+      }      
       // Calculate total study hours needed
       const totalStudyHoursNeeded = studyUnits * timePerUnit;
       

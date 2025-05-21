@@ -327,27 +327,33 @@ const StudyPlanPage: React.FC = () => {
                                 </div>
                               </div>
                               <div className="divide-y">
-                                {day.exams.map(examDay => {
+                                {day.exams.map((examDay, idx) => {
                                   const exam = exams.find(e => e.id === examDay.examId);
                                   if (!exam) return null;
-                                  
+
                                   const isReviewDay = examDay.isReview || examDay.chapters.length === 0;
-                                  
+
                                   return (
-                                    <div key={exam.id} className="py-3 px-4 flex items-center justify-between">
+                                    <div
+                                      key={`${day.date}-${examDay.examId}-${idx}`}
+                                      className="py-3 px-4 flex items-center justify-between"
+                                    >
                                       <div className="flex items-center gap-3">
-                                        <Checkbox 
+                                        <Checkbox
                                           id={`${day.date}-${exam.id}`}
                                           checked={examDay.completed}
-                                          onCheckedChange={(checked) => 
+                                          onCheckedChange={(checked) =>
                                             handleToggleCompletion(day.date, exam.id, checked === true)
                                           }
                                         />
-                                        <div className={`${examDay.completed ? 'line-through text-muted-foreground' : ''}`}>
+                                        <div className={examDay.completed ? 'line-through text-muted-foreground' : ''}>
                                           <p className="font-medium">{exam.name}</p>
                                           {isReviewDay ? (
                                             <p className="text-xs text-muted-foreground flex items-center">
-                                              <Badge variant="outline" className="mr-1 bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900 dark:text-blue-300 dark:border-blue-700">
+                                              <Badge
+                                                variant="outline"
+                                                className="mr-1 bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900 dark:text-blue-300 dark:border-blue-700"
+                                              >
                                                 Review Day
                                               </Badge>
                                               Practice all {exam.usePages ? 'pages' : 'chapters'}

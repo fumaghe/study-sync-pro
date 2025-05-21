@@ -1,19 +1,19 @@
-
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useAppContext } from '@/contexts/AppContext';
+import { StudySession } from '@/types';
 import { useIsMobile } from '@/hooks/use-mobile';
-import { 
-  addDays, differenceInDays, format, parseISO, startOfDay, subDays, 
-  isSameDay, isAfter, isBefore, differenceInWeeks 
+import {
+  addDays, differenceInDays, format, parseISO, startOfDay, subDays,
+  isSameDay, isAfter, isBefore, differenceInWeeks
 } from 'date-fns';
-import { 
-  BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid, 
+import {
+  BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid,
   PieChart, Pie, Cell, LineChart, Line, AreaChart, Area, Legend
 } from 'recharts';
-import { 
-  CalendarDays, ChartLine, ChartBar, CircleHalf, CirclePercent
+import {
+  CalendarDays, ChartLine, ChartBar, CircleHelp, CirclePercent
 } from "lucide-react";
 
 const Statistics: React.FC = () => {
@@ -340,7 +340,7 @@ const Statistics: React.FC = () => {
         {examsAtRisk.length > 0 && (
           <div className="space-y-2 pt-2">
             <h3 className="text-sm font-medium flex items-center gap-1">
-              <CircleHalf className="h-4 w-4" />
+              <CircleHelp className="h-4 w-4" />
               Exams Needing Attention
             </h3>
             <div className="space-y-2">
