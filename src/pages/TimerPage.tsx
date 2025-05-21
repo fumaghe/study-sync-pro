@@ -5,6 +5,7 @@ import PomodoroTimer from '@/components/timer/PomodoroTimer';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAppContext } from '@/contexts/AppContext';
 import { format } from 'date-fns';
+import { formatStudyTime } from '@/lib/formatters';
 
 const TimerPage: React.FC = () => {
   const { studySessions, exams } = useAppContext();
