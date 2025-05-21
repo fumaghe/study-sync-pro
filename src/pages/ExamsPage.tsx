@@ -4,8 +4,7 @@ import Layout from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { useAppContext } from '@/contexts/AppContext';
 import ExamCard from '@/components/exams/ExamCard';
-import ExamForm from '@/components/exams/ExamForm';
-import ExamFormUpgraded from '@/components/exams/ExamFormUpgraded';
+import ExamFormWizard from '@/components/exams/ExamFormWizard';
 import { Exam } from '@/types';
 import {
   Dialog,
@@ -83,7 +82,7 @@ const ExamsPage: React.FC = () => {
             </DialogDescription>
           </DialogHeader>
           <div className="flex-1 overflow-hidden">
-            <ExamFormUpgraded 
+            <ExamFormWizard 
               onSubmit={handleAddExam} 
               onCancel={() => setIsAddDialogOpen(false)} 
             />
@@ -102,7 +101,7 @@ const ExamsPage: React.FC = () => {
           </DialogHeader>
           <div className="flex-1 overflow-hidden">
             {currentExam && (
-              <ExamFormUpgraded 
+              <ExamFormWizard 
                 onSubmit={handleUpdateExam} 
                 initialValues={currentExam}
                 onCancel={() => setIsEditDialogOpen(false)} 
