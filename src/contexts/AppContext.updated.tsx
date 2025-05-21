@@ -533,7 +533,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const availableDays = newStudyDays.slice(futureDaysStart).filter(day => {
             const dayDate = parseISO(day.date);
             return !isSameDay(dayDate, examDate) && // Skip exam day
-                   isBefore(dayDate, examDate) && // Only days before exam
+                   isBefore(dayDate, examDate) && // Only days before exam date
                    day.available; // Only available days
           });
           

@@ -1,7 +1,7 @@
 
 import React from 'react';
 import Layout from '@/components/layout/Layout';
-import PomodoroTimer from '@/components/timer/PomodoroTimer';
+import PomodoroTimerUpgraded from '@/components/timer/PomodoroTimerUpgraded';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAppContext } from '@/contexts/AppContext';
 import { format } from 'date-fns';
@@ -31,7 +31,7 @@ const TimerPage: React.FC = () => {
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
-          <PomodoroTimer />
+          <PomodoroTimerUpgraded />
         </div>
         
         <div>

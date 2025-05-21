@@ -5,6 +5,7 @@ export interface Exam {
   id: string;
   name: string;
   date: string; // ISO string format
+  startStudyDate?: string; // Added this property
   chapters: number;
   pages?: number; // For page-based study
   usePages?: boolean; // Flag to switch between chapters and pages

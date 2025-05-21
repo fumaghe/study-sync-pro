@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { useAppContext } from '@/contexts/AppContext';
@@ -217,7 +216,7 @@ const PomodoroTimerUpgraded: React.FC = () => {
             <div className="relative w-64 h-64">
               <ProgressRing 
                 progress={progress}
-                size={256}
+                radius={128}
                 strokeWidth={8}
                 color={timerState === TimerState.BREAK ? 'bg-green-500' : 'bg-primary'}
               />
