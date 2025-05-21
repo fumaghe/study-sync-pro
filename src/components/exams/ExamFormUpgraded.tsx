@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -144,7 +145,10 @@ const ExamFormUpgraded: React.FC<ExamFormProps> = ({
   
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-6">
+      <form 
+        onSubmit={form.handleSubmit(handleFormSubmit)} 
+        className="space-y-6 max-h-[70vh] md:max-h-full overflow-y-auto pr-1 pb-4 md:pb-0 scroll-pt-8"
+      >
         <FormField
           control={form.control}
           name="name"
@@ -188,6 +192,7 @@ const ExamFormUpgraded: React.FC<ExamFormProps> = ({
                       onSelect={(date) => date && field.onChange(format(date, 'yyyy-MM-dd'))}
                       disabled={(date) => date < new Date()}
                       initialFocus
+                      className="p-3 pointer-events-auto"
                     />
                   </PopoverContent>
                 </Popover>
@@ -232,6 +237,7 @@ const ExamFormUpgraded: React.FC<ExamFormProps> = ({
                           selected={field.value ? new Date(field.value) : undefined}
                           onSelect={(date) => date && field.onChange(format(date, 'yyyy-MM-dd'))}
                           initialFocus
+                          className="p-3 pointer-events-auto"
                         />
                       </PopoverContent>
                     </Popover>
@@ -435,7 +441,7 @@ const ExamFormUpgraded: React.FC<ExamFormProps> = ({
           )}
         />
         
-        <div className="flex justify-end space-x-4">
+        <div className="flex justify-end space-x-4 pt-2 sticky bottom-0 bg-background pb-2">
           <Button type="button" variant="outline" onClick={onCancel}>
             Cancel
           </Button>

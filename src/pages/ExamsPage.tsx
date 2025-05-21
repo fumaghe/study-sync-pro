@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { useAppContext } from '@/contexts/AppContext';
 import ExamCard from '@/components/exams/ExamCard';
 import ExamForm from '@/components/exams/ExamForm';
+import ExamFormUpgraded from '@/components/exams/ExamFormUpgraded';
 import { Exam } from '@/types';
 import {
   Dialog,
@@ -74,36 +75,40 @@ const ExamsPage: React.FC = () => {
       
       {/* Add Exam Dialog */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-[550px] h-[90vh] sm:h-auto flex flex-col">
           <DialogHeader>
             <DialogTitle>Add New Exam</DialogTitle>
             <DialogDescription>
               Enter the details of your upcoming exam
             </DialogDescription>
           </DialogHeader>
-          <ExamForm 
-            onSubmit={handleAddExam} 
-            onCancel={() => setIsAddDialogOpen(false)} 
-          />
+          <div className="flex-1 overflow-hidden">
+            <ExamFormUpgraded 
+              onSubmit={handleAddExam} 
+              onCancel={() => setIsAddDialogOpen(false)} 
+            />
+          </div>
         </DialogContent>
       </Dialog>
       
       {/* Edit Exam Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-[550px] h-[90vh] sm:h-auto flex flex-col">
           <DialogHeader>
             <DialogTitle>Edit Exam</DialogTitle>
             <DialogDescription>
               Update the details of your exam
             </DialogDescription>
           </DialogHeader>
-          {currentExam && (
-            <ExamForm 
-              onSubmit={handleUpdateExam} 
-              initialData={currentExam}
-              onCancel={() => setIsEditDialogOpen(false)} 
-            />
-          )}
+          <div className="flex-1 overflow-hidden">
+            {currentExam && (
+              <ExamFormUpgraded 
+                onSubmit={handleUpdateExam} 
+                initialValues={currentExam}
+                onCancel={() => setIsEditDialogOpen(false)} 
+              />
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </Layout>
