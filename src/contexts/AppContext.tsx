@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { Exam, StudyDay, StudySession, Settings, Priority, StudyDayExam } from '@/types';
-import { addDays, differenceInDays, parseISO, format, isAfter, isSameDay, isBefore } from 'date-fns';
+import { addDays, differenceInDays, parseISO, format, isAfter, isSameDay, isBefore, startOfDay, subDays } from 'date-fns';
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -426,282 +426,278 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return completedUnits;
   };
 
-  const generateStudyPlan = (options?: RegenerationOptions) => {
-    if (exams.length === 0) {
-      toast.error("Add some exams before generating a study plan!");
-      return;
-    }
-
-    // Let's preserve the existing days but modify as needed 
-    // based on keepCompletedSessions option
-    let existingDays = [...studyDays];
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+  const generateStudyPlan = useCallback(() => {
+    setShowRegenerationDialog(false);
     
-    // If we're not keeping completed sessions, reset the days array
-    if (!options?.keepCompletedSessions) {
-      existingDays = [];
-    } else {
-      // Filter out any days that don't have completed exams
-      // We'll preserve only days with completed status
-      existingDays = existingDays.filter(day => 
-        day.exams.some(examDay => examDay.completed)
-      );
-    }
-
-    const furthestExamDate = exams.reduce((maxDate, exam) => {
-      const examDate = parseISO(exam.date);
-      return isAfter(examDate, maxDate) ? examDate : maxDate;
-    }, parseISO(exams[0].date));
+    const daysToExam = (examDate: Date): number => {
+      return differenceInDays(examDate, startOfDay(new Date()));
+    };
     
-    // Generate study days from today until furthest exam + 1 day
-    const daysToGenerate = differenceInDays(furthestExamDate, today) + 1;
+    // List of days between now and the furthest exam
+    const today = startOfDay(new Date());
+    const latestExamDate = new Date(Math.max(...exams.map(e => new Date(e.date).getTime())));
     
-    // Initialize study days
-    const newStudyDays: StudyDay[] = [];
-    for (let i = 0; i <= daysToGenerate; i++) {
+    // Create array of all days between today and the latest exam
+    const allDays: StudyDay[] = [];
+    const totalDays = differenceInDays(latestExamDate, today) + 1;
+    
+    for (let i = 0; i < totalDays; i++) {
       const currentDate = addDays(today, i);
-      const dateString = format(currentDate, 'yyyy-MM-dd');
+      const dateStr = format(currentDate, 'yyyy-MM-dd');
       
-      // Check if this day already exists in our existing days
-      const existingDay = existingDays.find(day => day.date === dateString);
+      // Check if this day already exists in our study days
+      const existingDay = studyDays.find(day => day.date === dateStr);
       
       if (existingDay) {
-        // If the day already exists in our preserved days, use it
-        newStudyDays.push(existingDay);
+        // Keep the existing study day configuration
+        allDays.push({
+          ...existingDay,
+          exams: existingDay.exams.filter(exam => {
+            // Keep manually assigned study sessions
+            return exam.manuallyAssigned === true;
+          })
+        });
       } else {
-        // Otherwise create a fresh day
-        const previousDay = studyDays.find(day => day.date === dateString);
-        newStudyDays.push({
-          date: dateString,
-          available: previousDay ? previousDay.available : true,
-          availableHours: previousDay ? previousDay.availableHours : settings.defaultDailyHours,
-          exams: [] // Start with empty exams for each day
+        // Create a new day with default settings
+        allDays.push({
+          date: dateStr,
+          available: !isWeekend(currentDate), // Default to weekends off
+          availableHours: 6, // Changed from 4 to 6 as requested
+          exams: []
         });
       }
     }
-
-    // Get track of which exams already have completed sessions
-    const processedExams = new Set<string>();
     
-    if (options?.keepCompletedSessions) {
-      // Mark exams that have completed sessions
-      existingDays.forEach(day => {
-        day.exams.forEach(examDay => {
-          if (examDay.completed) {
-            processedExams.add(examDay.examId);
-          }
-        });
-      });
-    }
+    // Initialize unit allocation map
+    const unitAllocationMap = new Map();
     
-    // Calculate study load for each exam
+    // Prepare available days list, respecting start study dates
     exams.forEach(exam => {
+      const examId = exam.id;
       const examDate = parseISO(exam.date);
-      const daysUntilExam = differenceInDays(examDate, today);
+      const startDate = exam.startStudyDate ? parseISO(exam.startStudyDate) : today;
+      const reviewDays = exam.customReviewDays || settings.reviewDays || 3;
       
-      if (daysUntilExam <= 0) return; // Skip past exams
+      // Calculate the study period end date (before review)
+      const endDate = subDays(examDate, reviewDays + 1);
       
-      // Skip if this exam has completed sessions and we're keeping them
-      if (options?.keepCompletedSessions && processedExams.has(exam.id)) {
-        // For exams with completed sessions, we need to recalculate the remaining days
-        // We'll get the completed units and distribute the remaining ones
-        
-        const completedUnits = getCompletedUnits(exam.id);
-        const totalUnits = exam.usePages ? (exam.pages || 0) : exam.chapters;
-        const remainingUnits = totalUnits - completedUnits.size;
-        
-        // Only recalculate if there are remaining units
-        if (remainingUnits > 0) {
-          // Find the latest completed day for this exam
-          const completedDays = newStudyDays.filter(day => 
-            day.exams.some(e => e.examId === exam.id && e.completed)
-          );
-          
-          let latestCompletedDay: StudyDay | undefined;
-          if (completedDays.length > 0) {
-            latestCompletedDay = completedDays.reduce((latest, day) => {
-              return parseISO(day.date) > parseISO(latest.date) ? day : latest;
-            }, completedDays[0]);
-          }
-          
-          // Get available future days after the latest completed day
-          const futureDaysStart = latestCompletedDay 
-            ? newStudyDays.findIndex(day => day.date === latestCompletedDay.date) + 1
-            : 0;
-            
-          const availableDays = newStudyDays.slice(futureDaysStart).filter(day => {
-            const dayDate = parseISO(day.date);
-            return !isSameDay(dayDate, examDate) && // Skip exam day
-                   isBefore(dayDate, examDate) && // Only days before exam
-                   day.available; // Only available days
-          });
-          
-          // Calculate study plan for remaining units
-          distributeRemainingUnits(
-            availableDays, 
-            exam, 
-            remainingUnits, 
-            completedUnits,
-            Math.max(...Array.from(completedUnits)) + 1
-          );
-        }
-        
-        return; // Skip regular distribution for this exam
-      }
-      
-      // Calculate review days based on exam-specific settings or default
-      const reviewDaysForExam = exam.customReviewDays !== undefined ? exam.customReviewDays : settings.reviewDays;
-      
-      // Get available days excluding exam day
-      let availableDays = newStudyDays.filter(day => {
+      // Filter days that are available for this exam
+      const availableDaysForExam = allDays.filter(day => {
         const dayDate = parseISO(day.date);
-        return !isSameDay(dayDate, examDate) && // Skip the exam day itself
-               isBefore(dayDate, examDate) && // Only before exam date
-               day.available && // Is available
-               !day.exams.some(e => e.examId === exam.id); // No existing entries for this exam
+        // Only include days:
+        // 1. On or after the start study date
+        // 2. On or before the end date
+        // 3. That are marked as available
+        return (
+          dayDate >= startDate && 
+          dayDate <= endDate && 
+          day.available
+        );
       });
       
-      // Calculate total study units (chapters or pages)
-      const studyUnits = exam.usePages ? (exam.pages || 0) : exam.chapters;
+      // Calculate total units (chapters or pages)
+      const totalUnits = exam.usePages ? exam.pages! : exam.chapters;
       
-      // Get time needed per unit
-      let timePerUnit: number;
-      if (exam.usePages) {
-        // For pages: timePerUnit = pages per hour
-        // So we need to convert to hours per page for calculations
-        timePerUnit = 1 / (exam.timePerUnit || 20); // Default 20 pages/hour
-      } else {
-        // For chapters: timePerUnit = hours per chapter
-        timePerUnit = exam.timePerUnit || 1; // Default: 1h/chapter
-      }
-      
-      // Calculate total study hours needed
-      const totalStudyHoursNeeded = studyUnits * timePerUnit;
-      
-      // Calculate optimal number of study days needed (accounting for efficiency)
-      const avgStudyHoursPerDay = settings.defaultDailyHours * 0.8; // Assume 80% efficiency
-      const optimalStudyDaysNeeded = Math.ceil(totalStudyHoursNeeded / avgStudyHoursPerDay);
-      
-      // Skip days at the beginning if we have more than needed
-      let startDayIndex = 0;
-      
-      // For small exams far in the future, start studying later
-      const isSmallExam = studyUnits < 30;
-      const isFarAway = daysUntilExam > 30;
-      
-      if (availableDays.length > optimalStudyDaysNeeded * 1.5) {
-        // We have 50% more days than needed, so we can skip some
-        const daysToSkip = Math.floor((availableDays.length - optimalStudyDaysNeeded) * 0.7);
-        startDayIndex = isSmallExam && isFarAway ? daysToSkip : Math.floor(daysToSkip * 0.4);
-      }
-      
-      // Take only the days we need, starting from calculated index
-      availableDays = availableDays.slice(startDayIndex);
-      
-      // Calculate review start index
-      const reviewStartIndex = Math.max(0, availableDays.length - reviewDaysForExam);
-      
-      // Calculate study days (non-review days)
-      const studyDaysAvailable = availableDays.slice(0, reviewStartIndex);
-      
-      if (studyDaysAvailable.length === 0 && reviewDaysForExam > 0) {
-        // If we don't have study days but do have review days,
-        // use some review days as study days
-        const daysToConvert = Math.min(Math.ceil(reviewDaysForExam / 2), availableDays.length);
-        for (let i = 0; i < daysToConvert; i++) {
-          studyDaysAvailable.push(availableDays[i]);
-        }
-      }
-      
-      // Calculate units per study day
-      let unitsPerDay = studyDaysAvailable.length > 0
-        ? Math.ceil(studyUnits / studyDaysAvailable.length)
-        : 0;
-      
-      // Ensure at least 1 unit per day
-      unitsPerDay = Math.max(1, unitsPerDay);
-      
-      // Distribute units across study days
-      let remainingUnits = studyUnits;
-      let currentUnit = 1;
-      
-      // Distribute study content evenly
-      studyDaysAvailable.forEach(day => {
-        if (remainingUnits <= 0) return;
-        
-        const maxUnitsForToday = Math.min(
-          unitsPerDay,
-          remainingUnits,
-          Math.floor(day.availableHours / timePerUnit)
-        );
-        
-        const todayUnits = Array.from(
-          { length: maxUnitsForToday },
-          (_, i) => currentUnit + i
-        );
-        
-        const hoursNeeded = Math.max(0.5, maxUnitsForToday * timePerUnit);
-        
-        day.exams.push({
-          examId: exam.id,
-          chapters: todayUnits,
-          plannedHours: hoursNeeded,
-          actualHours: 0,
-          completed: false
-        });
-        
-        currentUnit += maxUnitsForToday;
-        remainingUnits -= maxUnitsForToday;
-      });
-      
-      // Add review days
-      const reviewDays = availableDays.slice(reviewStartIndex);
-      reviewDays.forEach(day => {
-        day.exams.push({
-          examId: exam.id,
-          chapters: [],
-          plannedHours: 1, // Default 1 hour for review
-          actualHours: 0,
-          completed: false,
-          isReview: true
-        });
+      // Initialize unit allocation arrays
+      unitAllocationMap.set(examId, {
+        availableDays: availableDaysForExam,
+        endDate,
+        reviewStartDate: addDays(endDate, 1),
+        totalUnits,
+        hoursPerUnit: exam.timePerUnit,
+        usePages: exam.usePages,
+        allocated: false
       });
     });
     
-    // Maximize and optimize daily load - distribute remaining time proportionally
-    newStudyDays.forEach(day => {
-      if (!day.available || day.exams.length === 0) return;
+    // Attempt to allocate units to days
+    let attemptCount = 0;
+    const MAX_ATTEMPTS = 10;
+    
+    while (Array.from(unitAllocationMap.values()).some(data => !data.allocated) && attemptCount < MAX_ATTEMPTS) {
+      attemptCount++;
       
-      // Calculate total hours needed and currently planned
-      const totalHoursNeeded = day.exams.reduce((sum, exam) => sum + exam.plannedHours, 0);
+      // Sort exams by priority (based on how close the exam is and its priority level)
+      const examPriorityOrder = exams
+        .map(exam => {
+          const daysLeft = daysToExam(parseISO(exam.date));
+          // Create a priority score: lower means higher priority
+          let priorityScore = daysLeft;
+          
+          // Adjust based on priority level
+          if (exam.priority === 'high') priorityScore -= 10;
+          else if (exam.priority === 'low') priorityScore += 10;
+          
+          // Adjust based on initial level
+          priorityScore += exam.initialLevel;
+          
+          return {
+            examId: exam.id,
+            priorityScore
+          };
+        })
+        .sort((a, b) => a.priorityScore - b.priorityScore);
       
-      // If we have unused time, distribute it proportionally to exams
-      if (totalHoursNeeded < day.availableHours) {
-        const extraHours = day.availableHours - totalHoursNeeded;
+      // Process exams in priority order
+      for (const { examId } of examPriorityOrder) {
+        const allocationData = unitAllocationMap.get(examId);
+        if (allocationData.allocated) continue;
         
-        // Distribute extra hours proportionally
-        if (day.exams.length > 0) {
-          const extraPerExam = extraHours / day.exams.length;
-          day.exams.forEach(examDay => {
-            examDay.plannedHours += extraPerExam;
-            // Round to 1 decimal place for cleaner display
-            examDay.plannedHours = Math.round(examDay.plannedHours * 10) / 10;
+        const exam = exams.find(e => e.id === examId)!;
+        
+        // Get the available days for this exam
+        const { availableDays, totalUnits, hoursPerUnit, usePages } = allocationData;
+        
+        // If there are no available days, mark as allocated (we can't do anything)
+        if (availableDays.length === 0) {
+          unitAllocationMap.set(examId, { ...allocationData, allocated: true });
+          continue;
+        }
+        
+        // Calculate total available hours across all days
+        const totalAvailableHours = availableDays.reduce((sum, day) => {
+          // Subtract hours already allocated to other exams
+          const usedHours = day.exams.reduce((total, e) => total + e.plannedHours, 0);
+          return sum + Math.max(0, day.availableHours - usedHours);
+        }, 0);
+        
+        // Calculate total hours needed for this exam
+        const totalHoursNeeded = totalUnits * hoursPerUnit;
+        
+        // If we can't fit the exam in available time, mark as allocated and continue
+        if (totalAvailableHours < totalHoursNeeded) {
+          unitAllocationMap.set(examId, { ...allocationData, allocated: true });
+          continue;
+        }
+        
+        // Calculate units per day based on difficulty and available time
+        const avgUnitsPerDay = Math.max(1, Math.floor(totalUnits / availableDays.length));
+        const unitsLeft = [...Array(totalUnits)].map((_, i) => i + 1);
+        
+        // Allocate units to days
+        for (const day of availableDays) {
+          if (unitsLeft.length === 0) break;
+          
+          // Calculate available hours for this day
+          const usedHours = day.exams.reduce((total, e) => total + e.plannedHours, 0);
+          const availableHours = Math.max(0, day.availableHours - usedHours);
+          
+          if (availableHours <= 0) continue;
+          
+          // Decide how many units to allocate to this day
+          const unitsToAllocate = Math.min(
+            avgUnitsPerDay, 
+            Math.floor(availableHours / hoursPerUnit),
+            unitsLeft.length
+          );
+          
+          if (unitsToAllocate <= 0) continue;
+          
+          // Get units for this day
+          const dayUnits = unitsLeft.splice(0, unitsToAllocate);
+          const plannedHours = unitsToAllocate * hoursPerUnit;
+          
+          // Add to day's exams
+          day.exams.push({
+            examId,
+            chapters: dayUnits,
+            plannedHours,
+            actualHours: 0,
+            completed: false
           });
         }
-      }
-      // If we need more hours than available, adjust proportionally
-      else if (totalHoursNeeded > day.availableHours) {
-        const ratio = day.availableHours / totalHoursNeeded;
-        day.exams.forEach(examDay => {
-          examDay.plannedHours = Math.round((examDay.plannedHours * ratio) * 10) / 10;
+        
+        // If we still have units left, try to distribute them to days with remaining capacity
+        if (unitsLeft.length > 0) {
+          for (const day of availableDays) {
+            if (unitsLeft.length === 0) break;
+            
+            // Calculate remaining hours for this day
+            const usedHours = day.exams.reduce((total, e) => total + e.plannedHours, 0);
+            const remainingHours = Math.max(0, day.availableHours - usedHours);
+            
+            // Skip if no remaining hours
+            if (remainingHours < hoursPerUnit) continue;
+            
+            // Find the existing exam entry for this day
+            const examEntry = day.exams.find(e => e.examId === examId);
+            
+            // Calculate how many more units we can add
+            const additionalUnits = Math.min(
+              Math.floor(remainingHours / hoursPerUnit),
+              unitsLeft.length
+            );
+            
+            if (additionalUnits <= 0) continue;
+            
+            // Get additional units
+            const moreUnits = unitsLeft.splice(0, additionalUnits);
+            const additionalHours = additionalUnits * hoursPerUnit;
+            
+            if (examEntry) {
+              // Add to existing entry
+              examEntry.chapters.push(...moreUnits);
+              examEntry.plannedHours += additionalHours;
+            } else {
+              // Create new entry
+              day.exams.push({
+                examId,
+                chapters: moreUnits,
+                plannedHours: additionalHours,
+                actualHours: 0,
+                completed: false
+              });
+            }
+          }
+        }
+        
+        // Add review days
+        const reviewStartDate = allocationData.reviewStartDate;
+        const reviewDays = exam.customReviewDays || settings.reviewDays || 3;
+        
+        // Find days available for review
+        const reviewDaysAvailable = allDays.filter(day => {
+          const dayDate = parseISO(day.date);
+          return (
+            dayDate >= reviewStartDate && 
+            dayDate < parseISO(exam.date) && 
+            day.available
+          );
         });
+        
+        // Allocate review sessions
+        const reviewsToAllocate = Math.min(reviewDays, reviewDaysAvailable.length);
+        
+        for (let i = 0; i < reviewsToAllocate; i++) {
+          const reviewDay = reviewDaysAvailable[i];
+          
+          // Calculate available hours for this review day
+          const usedHours = reviewDay.exams.reduce((total, e) => total + e.plannedHours, 0);
+          const availableHours = Math.max(0, reviewDay.availableHours - usedHours);
+          
+          if (availableHours <= 1) continue; // Need at least an hour for review
+          
+          // Allocate 1-2 hours for review based on available time
+          const reviewHours = Math.min(2, availableHours);
+          
+          reviewDay.exams.push({
+            examId,
+            chapters: [], // Empty array indicates review of all content
+            plannedHours: reviewHours,
+            actualHours: 0,
+            completed: false,
+            isReview: true
+          });
+        }
+        
+        // Mark this exam as allocated
+        unitAllocationMap.set(examId, { ...allocationData, allocated: true });
       }
-    });
+    }
     
-    setStudyDays(newStudyDays);
-    toast.success("Study plan generated successfully!");
-  };
+    // Update study days state
+    setStudyDays(allDays);
+  }, [exams, studyDays, settings, setStudyDays]);
 
   // New helper function to distribute remaining units
   const distributeRemainingUnits = (
@@ -851,7 +847,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   return (
     <AppContext.Provider value={value}>
       {children}
-      <RegenerationDialog />
     </AppContext.Provider>
   );
 };
@@ -922,3 +917,5 @@ const RegenerationDialog: React.FC = () => {
     </Dialog>
   );
 };
+
+export default AppContextProvider;

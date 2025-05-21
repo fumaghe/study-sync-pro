@@ -134,9 +134,9 @@ const TodayStudyPlan: React.FC = () => {
           </Link>
         </div>
       </CardHeader>
-      <CardContent>
+      <CardContent className="px-3 sm:px-6">
         {todayPlan && todayPlan.exams.length > 0 ? (
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             {todayPlan.exams.map((examDay) => {
               const exam = exams.find(e => e.id === examDay.examId);
               if (!exam) return null;
@@ -145,8 +145,8 @@ const TodayStudyPlan: React.FC = () => {
               
               return (
                 <div key={exam.id} className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center space-x-2 min-w-[60%]">
                       <Checkbox 
                         id={`exam-${exam.id}`}
                         checked={examDay.completed}
@@ -182,7 +182,7 @@ const TodayStudyPlan: React.FC = () => {
             })}
           </div>
         ) : todayPlan && todayPlan.exams.length === 0 ? (
-          <div className="text-center py-8">
+          <div className="text-center py-6 sm:py-8">
             <p className="text-muted-foreground mb-4">
               No study tasks scheduled for today
             </p>
@@ -191,7 +191,7 @@ const TodayStudyPlan: React.FC = () => {
             </Link>
           </div>
         ) : (
-          <div className="text-center py-8">
+          <div className="text-center py-6 sm:py-8">
             <p className="text-muted-foreground mb-4">
               No study plan generated yet
             </p>
