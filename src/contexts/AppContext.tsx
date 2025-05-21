@@ -533,7 +533,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           const availableDays = newStudyDays.slice(futureDaysStart).filter(day => {
             const dayDate = parseISO(day.date);
             return !isSameDay(dayDate, examDate) && // Skip exam day
-                   isBefore(dayDate, examDate) && // Only days before exam
+                   isBefore(dayDate, examDate) && // Only days before exam date
                    day.available; // Only available days
           });
           
@@ -553,11 +553,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // Calculate review days based on exam-specific settings or default
       const reviewDaysForExam = exam.customReviewDays !== undefined ? exam.customReviewDays : settings.reviewDays;
       
-      // Get available days excluding exam day
+      // Respect the study start date if specified
+      const studyStartDate = exam.startStudyDate ? parseISO(exam.startStudyDate) : today;
+      
+      // Get available days excluding exam day and respecting start date
       let availableDays = newStudyDays.filter(day => {
         const dayDate = parseISO(day.date);
         return !isSameDay(dayDate, examDate) && // Skip the exam day itself
                isBefore(dayDate, examDate) && // Only before exam date
+               !isBefore(dayDate, studyStartDate) && // Only after or on start study date
                day.available && // Is available
                !day.exams.some(e => e.examId === exam.id); // No existing entries for this exam
       });

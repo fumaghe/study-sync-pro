@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -16,51 +15,54 @@ interface ExamCardProps {
 
 const ExamCard: React.FC<ExamCardProps> = ({ exam, compact = false, onEdit }) => {
   const { studyDays, studySessions, deleteExam } = useAppContext();
-  
+
   const examDate = new Date(exam.date);
   const today = new Date();
-  today.setHours(0, 0, 0, 0); // Reset time part
-  
+  today.setHours(0, 0, 0, 0);
+
   const daysUntilExam = differenceInDays(examDate, today);
   const isPastExam = daysUntilExam < 0;
-  
-  // Calculate progress
+
+  // Ore totali studiate
   const totalStudiedHours = studySessions
     .filter(session => session.examId === exam.id)
     .reduce((total, session) => total + (session.duration / 60), 0);
-    
-  // Count completed chapters/pages from study days
+
+  // Capitoli/pagine completati
   const completedUnits = new Set<number>();
   studyDays.forEach(day => {
     day.exams
-      .filter(dayExam => dayExam.examId === exam.id && dayExam.completed)
-      .forEach(dayExam => {
-        dayExam.chapters.forEach(unit => completedUnits.add(unit));
-      });
+      .filter(e => e.examId === exam.id && e.completed)
+      .forEach(e => e.chapters.forEach(unit => completedUnits.add(unit)));
   });
-  
+
   const totalUnits = exam.usePages ? exam.pages : exam.chapters;
   const progress = totalUnits ? (completedUnits.size / totalUnits) * 100 : 0;
-  
+
   const priorityColor = {
     low: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
-    medium: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300',
-    high: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300',
-  };
-  
+    medium: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300',
+    high: 'bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-300',
+  } as const;
+
   if (compact) {
     return (
-      <Card className="card-hover overflow-hidden" style={{ borderTopColor: exam.color, borderTopWidth: '3px' }}>
+      <Card
+        className="card-hover overflow-hidden"
+        style={{ borderTopColor: exam.color, borderTopWidth: '3px' }}
+      >
         <CardContent className="p-4">
           <div className="flex justify-between items-center mb-2">
             <h3 className="font-semibold text-base truncate">{exam.name}</h3>
-            <Badge className={priorityColor[exam.priority]}>{exam.priority}</Badge>
+            <Badge className={priorityColor[exam.priority]}>
+              {exam.priority}
+            </Badge>
           </div>
-          
+
           <div className="flex items-center justify-between text-sm">
-            <span className={isPastExam ? 'text-destructive' : ''}>
-              {isPastExam 
-                ? `${Math.abs(daysUntilExam)} days ago` 
+            <span className={isPastExam ? 'text-destructive' : undefined}>
+              {isPastExam
+                ? `${Math.abs(daysUntilExam)} days ago`
                 : `${daysUntilExam} days left`}
             </span>
             <span>{format(examDate, 'MMM dd')}</span>
@@ -69,58 +71,73 @@ const ExamCard: React.FC<ExamCardProps> = ({ exam, compact = false, onEdit }) =>
       </Card>
     );
   }
-  
+
   return (
-    <Card className="card-hover overflow-hidden" style={{ borderTopColor: exam.color, borderTopWidth: '3px' }}>
+    <Card
+      className="card-hover overflow-hidden"
+      style={{ borderTopColor: exam.color, borderTopWidth: '3px' }}
+    >
       <CardHeader className="pb-2">
         <div className="flex justify-between items-center">
           <CardTitle className="text-xl">{exam.name}</CardTitle>
-          <Badge className={priorityColor[exam.priority]}>{exam.priority}</Badge>
+          <Badge className={priorityColor[exam.priority]}>
+            {exam.priority}
+          </Badge>
         </div>
       </CardHeader>
-      
+
       <CardContent className="pb-4">
         <div className="flex flex-wrap gap-4 mb-4">
           <div className="flex-1">
             <p className="text-sm text-muted-foreground mb-1">Date</p>
             <p className="font-medium">{format(examDate, 'MMMM dd, yyyy')}</p>
-            <p className={`text-sm mt-1 ${isPastExam ? 'text-destructive' : 'text-muted-foreground'}`}>
-              {isPastExam 
-                ? `${Math.abs(daysUntilExam)} days ago` 
+            <p
+              className={`text-sm mt-1 ${
+                isPastExam ? 'text-destructive' : 'text-muted-foreground'
+              }`}
+            >
+              {isPastExam
+                ? `${Math.abs(daysUntilExam)} days ago`
                 : `${daysUntilExam} days left`}
             </p>
           </div>
-          
+
           <div>
             <p className="text-sm text-muted-foreground mb-1">
               {exam.usePages ? 'Pages' : 'Chapters'}
             </p>
-            <p className="font-medium">{exam.usePages ? exam.pages : exam.chapters}</p>
+            <p className="font-medium">
+              {exam.usePages ? exam.pages : exam.chapters}
+            </p>
             <p className="text-sm text-muted-foreground mt-1">
               {completedUnits.size} completed
             </p>
           </div>
-          
+
           <div>
             <p className="text-sm text-muted-foreground mb-1">Review Days</p>
             <p className="font-medium">
-              {exam.customReviewDays !== undefined ? exam.customReviewDays : '3 (default)'}
+              {exam.customReviewDays !== undefined
+                ? exam.customReviewDays
+                : '3 (default)'}
             </p>
           </div>
-          
+
           <div>
-            <p className="text-sm text-muted-foreground mb-1">Initial Level</p>
-            <p className="font-medium">{exam.initialLevel}/5</p>
+            <p className="text-sm text-muted-foreground mb-1">
+              Initial Level
+            </p>
+            <p className="font-medium">{exam.initialLevel}/10</p>
           </div>
         </div>
-        
+
         <div className="flex items-center gap-6">
           <div className="flex-shrink-0">
-            <ProgressRing 
-              progress={progress} 
-              strokeWidth={4} 
-              radius={30} 
-              color={exam.color || '#9b87f5'} 
+            <ProgressRing
+              progress={progress}
+              strokeWidth={4}
+              radius={30}
+              color={exam.color || '#9b87f5'}
             />
           </div>
           <div className="flex-1">
@@ -131,10 +148,12 @@ const ExamCard: React.FC<ExamCardProps> = ({ exam, compact = false, onEdit }) =>
             </p>
           </div>
           <div className="flex gap-2 ml-auto">
-            <Button size="sm" variant="outline" onClick={onEdit}>Edit</Button>
-            <Button 
-              size="sm" 
-              variant="destructive" 
+            <Button size="sm" variant="outline" onClick={onEdit}>
+              Edit
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
               onClick={() => deleteExam(exam.id)}
             >
               Delete

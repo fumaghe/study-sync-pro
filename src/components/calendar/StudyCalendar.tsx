@@ -51,10 +51,10 @@ const StudyCalendar: React.FC = () => {
       setSelectedStudyDay({
         date: dateString,
         available: true,
-        availableHours: 4,
+        availableHours: 6,
         exams: []
       });
-      setAvailableHours(4);
+      setAvailableHours(6);
       setIsAvailable(true);
     }
     

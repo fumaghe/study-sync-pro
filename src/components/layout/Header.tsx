@@ -19,7 +19,7 @@ const Header: React.FC = () => {
         <div className="flex items-center font-heading text-lg font-bold text-primary-purple mr-4">
           <Link to="/" className="flex items-center">
             <Calendar className="mr-2 h-5 w-5" />
-            <span>StudyPlanner Pro</span>
+            <span>StudyPlanner</span>
           </Link>
         </div>
         
