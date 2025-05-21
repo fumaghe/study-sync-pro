@@ -920,5 +920,3 @@ export const RegenerationDialog: React.FC = () => {
     </Dialog>
   );
 };
-
-export default AppProvider;
