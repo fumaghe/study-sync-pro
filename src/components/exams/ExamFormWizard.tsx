@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -149,16 +148,18 @@ const ExamFormWizard: React.FC<ExamFormProps> = ({
 
   // Check if the current step is valid
   const isCurrentStepValid = () => {
-    const { name, date, chapters, pages, usePages, timePerUnit, initialLevel, priority } = formValues;
+    const { name, date, usePages, timePerUnit, initialLevel, priority } = formValues;
     
     switch (currentStep) {
       case 1:
         return !!name && !!date; // Basic info
       case 2:
         if (usePages) {
-          return pages && pages > 0 && timePerUnit > 0 && initialLevel >= 0;
+          // For pages mode, check pages
+          return (formValues as any).pages > 0 && timePerUnit > 0 && initialLevel >= 0;
         } else {
-          return chapters && chapters > 0 && timePerUnit > 0 && initialLevel >= 0;
+          // For chapters mode, check chapters
+          return (formValues as any).chapters > 0 && timePerUnit > 0 && initialLevel >= 0;
         }
       case 3:
         return true; // Final step always valid as customReviewDays is optional
@@ -543,12 +544,12 @@ const ExamFormWizard: React.FC<ExamFormProps> = ({
             {formValues.usePages ? (
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Total Pages:</span>
-                <span className="font-medium">{formValues.pages || '0'}</span>
+                <span className="font-medium">{(formValues as any).pages || '0'}</span>
               </div>
             ) : (
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Total Chapters:</span>
-                <span className="font-medium">{formValues.chapters || '0'}</span>
+                <span className="font-medium">{(formValues as any).chapters || '0'}</span>
               </div>
             )}
             

@@ -164,7 +164,8 @@ const PomodoroTimerUpgraded: React.FC = () => {
         examId: selectedExam,
         date: new Date().toISOString(),
         duration: durationMinutes,
-        chapters: [...chapters]
+        chapters: [...chapters],
+        completed: true  // Add the required completed property
       });
       
       toast({

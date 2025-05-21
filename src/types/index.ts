@@ -1,3 +1,4 @@
+
 export type Priority = 'low' | 'medium' | 'high';
 
 export interface Exam {
@@ -39,6 +40,7 @@ export interface StudySession {
   duration: number;
   completed: boolean;
   chapters: number[];
+  notes?: string; // Added notes as optional property
 }
 
 export interface Settings {
