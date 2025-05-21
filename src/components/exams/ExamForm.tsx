@@ -168,6 +168,7 @@ const ExamForm: React.FC<ExamFormProps> = ({ onSubmit, initialData, onCancel }) 
       usePages: values.usePages,
       timePerUnit: values.timePerUnit,
       customReviewDays: values.customReviewDays,
+      color: initialData?.color || '#' + Math.floor(Math.random()*16777215).toString(16), // Add color property: use existing or generate random
       // Add appropriate properties based on the type
       ...(values.usePages 
         ? { chapters: 0, pages: (values as PagesFormValues).pages } 

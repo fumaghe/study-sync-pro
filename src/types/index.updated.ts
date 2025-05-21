@@ -1,19 +1,18 @@
-
 export type Priority = 'low' | 'medium' | 'high';
 
 export interface Exam {
   id: string;
   name: string;
   date: string;
-  startStudyDate?: string;
-  usePages: boolean;
+  startStudyDate?: string; // New field for study start date
   chapters: number;
   pages?: number;
+  usePages: boolean;
   timePerUnit: number;
   initialLevel: number;
   priority: Priority;
-  color: string;
   customReviewDays?: number;
+  color: string;
 }
 
 export interface StudyDayExam {
@@ -23,7 +22,6 @@ export interface StudyDayExam {
   actualHours: number;
   completed: boolean;
   isReview?: boolean;
-  manuallyAssigned?: boolean; // Flag to mark manually assigned sessions
 }
 
 export interface StudyDay {
@@ -38,9 +36,7 @@ export interface StudySession {
   examId: string;
   date: string;
   duration: number;
-  completed: boolean;
   chapters: number[];
-  notes?: string; // Added notes as optional property
 }
 
 export interface Settings {

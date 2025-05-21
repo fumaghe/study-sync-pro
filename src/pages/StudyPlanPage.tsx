@@ -9,11 +9,19 @@ import { format, parseISO } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { FileText, RefreshCw } from 'lucide-react';
+import { FileText, RefreshCw, MoveVertical, Play, Pause } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Exam } from '@/types';
+import { Exam, StudyDay } from '@/types';
 import { Label } from '@/components/ui/label';
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem,
+  DropdownMenuTrigger 
+} from "@/components/ui/dropdown-menu";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { formatStudyTime } from '@/lib/formatters';
 
 interface EditDayState {
   date: string;
@@ -22,6 +30,12 @@ interface EditDayState {
   currentChapters: number[];
   isReview?: boolean;
   canAddCustomChapters?: boolean;
+}
+
+interface MoveStudyState {
+  fromDate: string;
+  examId: string;
+  toDate: string | null;
 }
 
 const StudyPlanPage: React.FC = () => {
@@ -34,6 +48,7 @@ const StudyPlanPage: React.FC = () => {
   
   const [editingDay, setEditingDay] = useState<EditDayState | null>(null);
   const [newChapterValue, setNewChapterValue] = useState<string>('');
+  const [movingStudy, setMovingStudy] = useState<MoveStudyState | null>(null);
   
   // Group study days by week for better visualization
   const groupedDays = studyDays.reduce<{ [weekKey: string]: typeof studyDays }>((acc, day) => {
@@ -168,10 +183,55 @@ const StudyPlanPage: React.FC = () => {
     
     updateStudyDay(updatedDay);
   };
+
+  // Function to open the move study dialog
+  const handleOpenMoveDialog = (date: string, examId: string) => {
+    setMovingStudy({
+      fromDate: date,
+      examId,
+      toDate: null
+    });
+  };
+
+  // Function to handle moving a study session to another day
+  const handleMoveStudy = () => {
+    if (!movingStudy || !movingStudy.toDate) return;
+    
+    const { fromDate, examId, toDate } = movingStudy;
+    
+    const sourceDay = studyDays.find(day => day.date === fromDate);
+    const targetDay = studyDays.find(day => day.date === toDate);
+    
+    if (!sourceDay || !targetDay) return;
+    
+    // Find the exam entry to move
+    const examEntry = sourceDay.exams.find(exam => exam.examId === examId);
+    
+    if (!examEntry) return;
+    
+    // Create an updated source day without the moved exam
+    const updatedSourceDay = {
+      ...sourceDay,
+      exams: sourceDay.exams.filter(exam => exam.examId !== examId)
+    };
+    
+    // Create an updated target day with the added exam
+    const updatedTargetDay = {
+      ...targetDay,
+      exams: [...targetDay.exams, examEntry]
+    };
+    
+    // Update both days
+    updateStudyDay(updatedSourceDay);
+    updateStudyDay(updatedTargetDay);
+    
+    // Close the modal
+    setMovingStudy(null);
+  };
   
   return (
     <Layout>
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-2">
         <h1 className="text-3xl font-bold tracking-tight">Study Plan</h1>
         <Button onClick={() => setShowRegenerationDialog(true)}>
           <RefreshCw className="mr-2 h-4 w-4" />
@@ -302,13 +362,26 @@ const StudyPlanPage: React.FC = () => {
                                         </div>
                                       </div>
                                       <div className="flex items-center gap-2">
+                                        {/* Move study session dropdown */}
+                                        <DropdownMenu>
+                                          <DropdownMenuTrigger asChild>
+                                            <Button variant="outline" size="icon">
+                                              <MoveVertical className="h-4 w-4" />
+                                            </Button>
+                                          </DropdownMenuTrigger>
+                                          <DropdownMenuContent align="end">
+                                            <DropdownMenuItem onClick={() => handleOpenMoveDialog(day.date, exam.id)}>
+                                              Move to different day
+                                            </DropdownMenuItem>
+                                          </DropdownMenuContent>
+                                        </DropdownMenu>
                                         {examDay.completed && examDay.actualHours > 0 && (
                                           <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 dark:bg-green-900 dark:text-green-300 dark:border-green-700">
-                                            {examDay.actualHours}h done
+                                            {formatStudyTime(examDay.actualHours)}
                                           </Badge>
                                         )}
                                         <Badge variant="outline">
-                                          {examDay.plannedHours} hours
+                                          {formatStudyTime(examDay.plannedHours)}
                                         </Badge>
                                       </div>
                                     </div>
@@ -330,7 +403,7 @@ const StudyPlanPage: React.FC = () => {
       
       {/* Enhanced dialog for editing actual study progress */}
       <Dialog open={!!editingDay} onOpenChange={(open) => !open && setEditingDay(null)}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Update Study Progress</DialogTitle>
           </DialogHeader>
@@ -419,6 +492,51 @@ const StudyPlanPage: React.FC = () => {
             </Button>
             <Button onClick={handleSaveActualStudy}>
               Save Progress
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog for moving study to another day */}
+      <Dialog open={!!movingStudy} onOpenChange={(open) => !open && setMovingStudy(null)}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Move Study Session</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {movingStudy && (
+              <>
+                <div>
+                  <Label className="mb-2 block">Select a day to move to:</Label>
+                  <Select 
+                    onValueChange={(value) => setMovingStudy(prev => prev ? {...prev, toDate: value} : null)}
+                    value={movingStudy.toDate || undefined}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a day" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {studyDays
+                        .filter(day => day.available && day.date !== movingStudy.fromDate)
+                        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+                        .map(day => (
+                          <SelectItem key={day.date} value={day.date}>
+                            {format(parseISO(day.date), 'EEE, MMM d')}
+                          </SelectItem>
+                        ))
+                      }
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMovingStudy(null)}>
+              Cancel
+            </Button>
+            <Button onClick={handleMoveStudy} disabled={!movingStudy?.toDate}>
+              Move Session
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -72,7 +71,7 @@ const PomodoroTimer: React.FC = () => {
       date: new Date().toISOString(),
       duration: 0, // Will update this at the end
       chapters: selectedChapters,
-      notes: notes || undefined
+      completed: false // Add the required completed property
     };
     
     setSessionMinutes(0);
