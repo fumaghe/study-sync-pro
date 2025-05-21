@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Exam, StudyDay, StudySession, Settings, Priority, StudyDayExam } from '@/types';
-import { addDays, differenceInDays, parseISO, format, isAfter, isSameDay, isBefore } from 'date-fns';
+import { addDays, differenceInDays, parseISO, format, isAfter, isSameDay, isBefore, isEqual, isSameOrAfter } from 'date-fns';
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -561,7 +561,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const dayDate = parseISO(day.date);
         return !isSameDay(dayDate, examDate) && // Skip the exam day itself
                isBefore(dayDate, examDate) && // Only before exam date
-               !isBefore(dayDate, studyStartDate) && // Only after or on start study date
+               isSameOrAfter(dayDate, studyStartDate) && // Only on or after start study date
                day.available && // Is available
                !day.exams.some(e => e.examId === exam.id); // No existing entries for this exam
       });
