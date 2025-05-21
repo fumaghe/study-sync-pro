@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { Exam, StudyDay, StudySession, Settings, Priority, StudyDayExam } from '@/types';
-import { addDays, differenceInDays, parseISO, format, isAfter, isSameDay, isBefore, startOfDay, subDays } from 'date-fns';
+import { addDays, differenceInDays, parseISO, format, isAfter, isSameDay, isBefore, startOfDay, subDays, isWeekend } from 'date-fns';
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -461,7 +461,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Create a new day with default settings
         allDays.push({
           date: dateStr,
-          available: !isWeekend(currentDate), // Default to weekends off
+          available: !isWeekend(currentDate), // Using isWeekend function correctly now
           availableHours: 6, // Changed from 4 to 6 as requested
           exams: []
         });
@@ -851,6 +851,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   );
 };
 
+// Fix the export name - change from AppContextProvider to AppProvider
+export default AppProvider;
+
 // New component for regeneration dialog
 const RegenerationDialog: React.FC = () => {
   const { showRegenerationDialog, setShowRegenerationDialog, generateStudyPlan } = useAppContext();
@@ -918,4 +921,4 @@ const RegenerationDialog: React.FC = () => {
   );
 };
 
-export default AppContextProvider;
+export default AppProvider;
