@@ -22,17 +22,17 @@ const App = () => (
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <BrowserRouter>
+        <BrowserRouter basename="/study-sync-pro/">
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/exams" element={<ExamsPage />} />
             <Route path="/plan" element={<StudyPlanPage />} />
             <Route path="/timer" element={<TimerPage />} />
             <Route path="/settings" element={<SettingsPage />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
+
       </TooltipProvider>
     </AppProvider>
   </QueryClientProvider>

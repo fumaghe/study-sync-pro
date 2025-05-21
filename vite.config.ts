@@ -5,7 +5,7 @@ import { componentTagger } from "lovable-tagger";
 
 // vite.config.js
 export default defineConfig(({ mode }) => ({
-  base: '/study-sync-pro/', // <-- cambia col nome della tua repo
+  base: '/study-sync-pro/',
   server: {
     host: "::",
     port: 8080,
