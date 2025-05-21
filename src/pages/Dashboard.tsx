@@ -17,24 +17,26 @@ const Dashboard: React.FC = () => {
   
   return (
     <Layout>
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 sm:mb-6 gap-3">
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Dashboard</h1>
-        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+        <div className="flex gap-2">
           {exams.length > 0 && (
-            <Button onClick={handleGeneratePlan} className="flex-1 sm:flex-none">
+            <Button onClick={handleGeneratePlan}>
               Generate Study Plan
             </Button>
           )}
-          <Link to="/exams" className="flex-1 sm:flex-none">
-            <Button variant="outline" className="w-full">
+          <Link to="/exams">
+            <Button variant="outline">
               Manage Exams
             </Button>
           </Link>
         </div>
       </div>
       
-      <div className="grid grid-cols-1 gap-4 sm:gap-6">
-        <TodayStudyPlan />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="md:col-span-2">
+          <TodayStudyPlan />
+        </div>
         <UpcomingExams />
         <Statistics />
       </div>

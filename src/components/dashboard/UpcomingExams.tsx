@@ -31,7 +31,7 @@ const UpcomingExams: React.FC = () => {
         <div className="flex items-center justify-between">
           <CardTitle>Upcoming Exams</CardTitle>
           <Link to="/exams">
-            <Button variant="outline" size="sm" className="whitespace-nowrap">
+            <Button variant="outline" size="sm">
               {hasExams ? 'View All' : 'Add Exam'}
             </Button>
           </Link>
@@ -39,13 +39,13 @@ const UpcomingExams: React.FC = () => {
       </CardHeader>
       <CardContent>
         {hasExams ? (
-          <div className="grid gap-3 sm:gap-4">
+          <div className="grid gap-4">
             {upcomingExams.slice(0, 3).map((exam) => (
               <ExamCard key={exam.id} exam={exam} compact />
             ))}
           </div>
         ) : (
-          <div className="text-center py-6 sm:py-8">
+          <div className="text-center py-8">
             <p className="text-muted-foreground mb-4">No upcoming exams found</p>
             <Link to="/exams">
               <Button>Add Your First Exam</Button>
