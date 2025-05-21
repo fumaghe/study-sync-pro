@@ -855,7 +855,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 export default AppProvider;
 
 // New component for regeneration dialog
-const RegenerationDialog: React.FC = () => {
+export const RegenerationDialog: React.FC = () => {
   const { showRegenerationDialog, setShowRegenerationDialog, generateStudyPlan } = useAppContext();
   const [keepCompleted, setKeepCompleted] = useState(true);
   
