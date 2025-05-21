@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -92,13 +91,13 @@ const ExamFormUpgraded: React.FC<ExamFormProps> = ({
       };
     }
     
+    // Type-safe default values based on usePages discriminator
     return {
       name: '',
       date: format(new Date(), 'yyyy-MM-dd'),
       startStudyDate: undefined,
       usePages: false,
       chapters: 10,
-      pages: 100,
       timePerUnit: 1,
       initialLevel: 0,
       priority: 'medium' as Priority,
