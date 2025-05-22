@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import i18n from '@/i18n';
 
 interface RegenerationOptions {
   keepCompletedSessions: boolean;
@@ -27,13 +28,14 @@ interface AppContextType {
   setShowRegenerationDialog: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
-const defaultSettings: Settings = {
+const initialSettings: Settings = {
   pomodoroWork: 25,
   pomodoroBreak: 5,
   defaultDailyHours: 4,
   reviewDays: 3,
   notifications: true,
   darkMode: false,
+  language: 'en',
 };
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -65,7 +67,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [exams, setExams] = useState<Exam[]>([]);
   const [studyDays, setStudyDays] = useState<StudyDay[]>([]);
   const [studySessions, setStudySessions] = useState<StudySession[]>([]);
-  const [settings, setSettings] = useState<Settings>(defaultSettings);
+  const [settings, setSettings] = useState<Settings>(initialSettings);
   const [showRegenerationDialog, setShowRegenerationDialog] = useState(false);
 
   // Load data from localStorage on component mount
@@ -396,6 +398,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const updateSettings = (newSettings: Settings) => {
+    // Update language if it changed
+    if (settings.language !== newSettings.language) {
+      i18n.changeLanguage(newSettings.language);
+    }
+    
     setSettings(newSettings);
     toast.success("Settings updated successfully!");
   };

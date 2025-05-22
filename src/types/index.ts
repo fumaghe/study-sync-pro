@@ -1,4 +1,3 @@
-
 export type Priority = 'low' | 'medium' | 'high';
 
 export interface Exam {
@@ -51,4 +50,5 @@ export interface Settings {
   reviewDays: number;
   notifications: boolean;
   darkMode: boolean;
+  language: 'en' | 'it' | 'es' | 'fr';
 }

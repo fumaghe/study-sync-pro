@@ -21,6 +21,9 @@ import { useAppContext } from '@/contexts/AppContext';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { toast } from "sonner";
+import { useTranslation } from 'react-i18next';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Globe } from 'lucide-react';
 
 const formSchema = z.object({
   pomodoroWork: z.coerce.number().min(1).max(120),
@@ -29,10 +32,12 @@ const formSchema = z.object({
   reviewDays: z.coerce.number().min(0).max(14),
   notifications: z.boolean(),
   darkMode: z.boolean(),
+  language: z.enum(['en', 'it', 'es', 'fr']),
 });
 
 const SettingsPage: React.FC = () => {
   const { settings, updateSettings, resetData } = useAppContext();
+  const { t } = useTranslation();
   
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -41,7 +46,7 @@ const SettingsPage: React.FC = () => {
   
   const handleSubmit = (values: z.infer<typeof formSchema>) => {
     updateSettings(values as Settings);
-    toast.success("Settings saved successfully!");
+    toast.success(t('settings.saveSettings'));
   };
   
   const handleReset = () => {
@@ -50,14 +55,14 @@ const SettingsPage: React.FC = () => {
 
   return (
     <Layout>
-      <h1 className="text-3xl font-bold tracking-tight mb-6">Settings</h1>
+      <h1 className="text-3xl font-bold tracking-tight mb-6">{t('settings.title')}</h1>
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>General Settings</CardTitle>
+            <CardTitle>{t('settings.generalSettings')}</CardTitle>
             <CardDescription>
-              Configure your study preferences and application behavior
+              {t('settings.configDesc')}
             </CardDescription>
           </CardHeader>
           
@@ -65,7 +70,7 @@ const SettingsPage: React.FC = () => {
             <Form {...form}>
               <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
                 <div className="space-y-4">
-                  <h3 className="text-lg font-medium">Pomodoro Timer</h3>
+                  <h3 className="text-lg font-medium">{t('settings.pomodoroTimer')}</h3>
                   
                   <div className="grid grid-cols-2 gap-4">
                     <FormField
@@ -73,7 +78,7 @@ const SettingsPage: React.FC = () => {
                       name="pomodoroWork"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Work Duration (minutes)</FormLabel>
+                          <FormLabel>{t('settings.workDuration')}</FormLabel>
                           <FormControl>
                             <Input type="number" min="1" max="120" {...field} />
                           </FormControl>
@@ -87,7 +92,7 @@ const SettingsPage: React.FC = () => {
                       name="pomodoroBreak"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Break Duration (minutes)</FormLabel>
+                          <FormLabel>{t('settings.breakDuration')}</FormLabel>
                           <FormControl>
                             <Input type="number" min="1" max="30" {...field} />
                           </FormControl>
@@ -101,7 +106,7 @@ const SettingsPage: React.FC = () => {
                 <Separator />
                 
                 <div className="space-y-4">
-                  <h3 className="text-lg font-medium">Study Planning</h3>
+                  <h3 className="text-lg font-medium">{t('settings.studyPlanning')}</h3>
                   
                   <div className="grid grid-cols-2 gap-4">
                     <FormField
@@ -109,7 +114,7 @@ const SettingsPage: React.FC = () => {
                       name="defaultDailyHours"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Default Study Hours Per Day</FormLabel>
+                          <FormLabel>{t('settings.defaultStudyHours')}</FormLabel>
                           <FormControl>
                             <Input type="number" min="0.5" max="16" step="0.5" {...field} />
                           </FormControl>
@@ -123,13 +128,13 @@ const SettingsPage: React.FC = () => {
                       name="reviewDays"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Review Days Before Exam</FormLabel>
+                          <FormLabel>{t('settings.reviewDays')}</FormLabel>
                           <FormControl>
                             <Input type="number" min="0" max="14" {...field} />
                           </FormControl>
                           <FormMessage />
                           <FormDescription>
-                            Days dedicated to review before exam
+                            {t('settings.reviewDaysDesc')}
                           </FormDescription>
                         </FormItem>
                       )}
@@ -140,7 +145,36 @@ const SettingsPage: React.FC = () => {
                 <Separator />
                 
                 <div className="space-y-4">
-                  <h3 className="text-lg font-medium">Interface Settings</h3>
+                  <h3 className="text-lg font-medium">{t('settings.interfaceSettings')}</h3>
+                  
+                  <FormField
+                    control={form.control}
+                    name="language"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>{t('settings.language')}</FormLabel>
+                        <Select 
+                          onValueChange={field.onChange} 
+                          defaultValue={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger className="w-full">
+                              <SelectValue placeholder="Select language" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="en">English 🇬🇧</SelectItem>
+                            <SelectItem value="it">Italiano 🇮🇹</SelectItem>
+                            <SelectItem value="es">Español 🇪🇸</SelectItem>
+                            <SelectItem value="fr">Français 🇫🇷</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormDescription>
+                          {t('settings.languageDesc')}
+                        </FormDescription>
+                      </FormItem>
+                    )}
+                  />
                   
                   <FormField
                     control={form.control}
@@ -149,10 +183,10 @@ const SettingsPage: React.FC = () => {
                       <FormItem className="flex items-center justify-between rounded-lg border p-4">
                         <div className="space-y-0.5">
                           <FormLabel className="text-base">
-                            Dark Mode
+                            {t('settings.darkMode')}
                           </FormLabel>
                           <FormDescription>
-                            Switch between light and dark theme
+                            {t('settings.darkModeDesc')}
                           </FormDescription>
                         </div>
                         <FormControl>
@@ -172,10 +206,10 @@ const SettingsPage: React.FC = () => {
                       <FormItem className="flex items-center justify-between rounded-lg border p-4">
                         <div className="space-y-0.5">
                           <FormLabel className="text-base">
-                            Browser Notifications
+                            {t('settings.notifications')}
                           </FormLabel>
                           <FormDescription>
-                            Allow notifications for timer and reminders
+                            {t('settings.notificationsDesc')}
                           </FormDescription>
                         </div>
                         <FormControl>
@@ -190,7 +224,7 @@ const SettingsPage: React.FC = () => {
                 </div>
                 
                 <Button type="submit" className="w-full">
-                  Save Settings
+                  {t('settings.saveSettings')}
                 </Button>
               </form>
             </Form>
@@ -199,23 +233,28 @@ const SettingsPage: React.FC = () => {
         
         <Card>
           <CardHeader>
-            <CardTitle>Data Management</CardTitle>
+            <CardTitle>{t('settings.dataManagement')}</CardTitle>
             <CardDescription>
-              Manage your application data and reset options
+              {t('settings.dataDesc')}
             </CardDescription>
           </CardHeader>
           
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              All your data is stored locally in your browser. This includes your exams, study plans, and settings.
+              {t('settings.storageDetails').split('\n').map((line, i) => (
+                <React.Fragment key={i}>
+                  {line}
+                  <br />
+                </React.Fragment>
+              ))}
             </p>
             
             <div className="bg-muted/50 p-4 rounded-md">
-              <h4 className="font-medium mb-2">Storage Information</h4>
+              <h4 className="font-medium mb-2">{t('settings.storageInfo')}</h4>
               <ul className="text-sm space-y-1">
-                <li>• Exams and study data are saved in your browser's local storage</li>
-                <li>• Data will persist between sessions until you clear it</li>
-                <li>• Data is not synced between devices</li>
+                <li>• {t('settings.storageDetails').split('\n')[0]}</li>
+                <li>• {t('settings.storageDetails').split('\n')[1]}</li>
+                <li>• {t('settings.storageDetails').split('\n')[2]}</li>
               </ul>
             </div>
           </CardContent>
@@ -223,12 +262,12 @@ const SettingsPage: React.FC = () => {
           <CardFooter className="border-t pt-6">
             <div className="space-y-4 w-full">
               <div className="bg-destructive/10 p-4 rounded-md">
-                <h4 className="font-medium text-destructive mb-2">Danger Zone</h4>
+                <h4 className="font-medium text-destructive mb-2">{t('settings.dangerZone')}</h4>
                 <p className="text-sm text-muted-foreground mb-4">
-                  Resetting will permanently erase all your data, including exams, study plans, and settings.
+                  {t('settings.resetWarning')}
                 </p>
                 <Button variant="destructive" onClick={handleReset} className="w-full">
-                  Reset All Data
+                  {t('settings.resetData')}
                 </Button>
               </div>
             </div>
