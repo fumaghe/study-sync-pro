@@ -53,7 +53,8 @@ const ProgressRing: React.FC<ProgressRingProps> = ({
   
   // Render tomato at different growth stages
   const renderTomato = () => {
-    const size = radius * 1.2;
+    // Reduced size to avoid overflowing container
+    const size = radius * 0.9;
     const tomatoColor = getProgressColor();
     
     if (progress < 25) {
@@ -108,10 +109,10 @@ const ProgressRing: React.FC<ProgressRingProps> = ({
     }
   };
   
-  // Render plant at different growth stages
+  // Render plant at different growth stages with reduced size
   const renderPlant = () => {
-    // Simplified plant implementation
-    const size = radius * 1.2;
+    // Reduced size to prevent overflow
+    const size = radius * 0.9;
     
     if (progress < 25) {
       // Seed
@@ -173,9 +174,9 @@ const ProgressRing: React.FC<ProgressRingProps> = ({
     }
   };
   
-  // Render book at different opening stages
+  // Render book at different opening stages with reduced size
   const renderBook = () => {
-    const size = radius * 1.2;
+    const size = radius * 0.9;
     const openAngle = Math.min(180, (progress / 100) * 180);
     
     return (

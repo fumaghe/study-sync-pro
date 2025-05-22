@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { useAppContext } from '@/contexts/AppContext';
@@ -375,6 +374,23 @@ const PomodoroTimerUpgraded: React.FC = () => {
     setChapters(chapters.filter(c => c !== chapter));
   };
   
+  // Add suggested chapter when clicked
+  const handleSuggestedChapterClick = (chapter: number) => {
+    if (!chapters.includes(chapter)) {
+      setChapters([...chapters, chapter].sort((a, b) => a - b));
+      toast({
+        title: "Chapter added",
+        description: `Chapter ${chapter} has been added to your study session`
+      });
+    } else {
+      setChapters(chapters.filter(c => c !== chapter));
+      toast({
+        title: "Chapter removed",
+        description: `Chapter ${chapter} has been removed from your study session`
+      });
+    }
+  };
+  
   // Update study plan with completed chapters
   const markChaptersAsCompleted = () => {
     if (!markChaptersCompleted || chapters.length === 0) return;
@@ -505,22 +521,28 @@ const PomodoroTimerUpgraded: React.FC = () => {
                 </Badge>
               </div>
               
-              <ProgressRing 
-                progress={progress}
-                radius={128}
-                strokeWidth={8}
-                color={breakTime ? 'bg-green-500' : 'bg-primary'}
-                theme={timerTheme}
-                showLabel={false}
-              />
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <div className="text-4xl font-bold">
-                  {formatTime(timeLeft)}
-                </div>
-                <div className="mt-2 text-sm text-muted-foreground">
-                  {breakTime ? "Break Time" :
-                    timerState === TimerState.RUNNING ? "Focus Time" : 
-                    timerState === TimerState.PAUSED ? "Paused" : "Ready"}
+              {/* Timer visualization with improved text visibility */}
+              <div className="relative">
+                <ProgressRing 
+                  progress={progress}
+                  radius={120}
+                  strokeWidth={8}
+                  color={breakTime ? 'bg-green-500' : 'bg-primary'}
+                  theme={timerTheme}
+                  showLabel={false}
+                  className="opacity-90"
+                />
+                <div className="absolute inset-0 flex flex-col items-center justify-center z-10">
+                  <div className="bg-background/70 backdrop-blur-sm px-4 py-2 rounded-full shadow-sm">
+                    <div className="text-4xl font-bold">
+                      {formatTime(timeLeft)}
+                    </div>
+                  </div>
+                  <div className="mt-2 text-sm font-medium bg-background/70 backdrop-blur-sm px-3 py-1 rounded-full shadow-sm">
+                    {breakTime ? "Break Time" :
+                      timerState === TimerState.RUNNING ? "Focus Time" : 
+                      timerState === TimerState.PAUSED ? "Paused" : "Ready"}
+                  </div>
                 </div>
               </div>
             </div>
@@ -578,11 +600,16 @@ const PomodoroTimerUpgraded: React.FC = () => {
                 {suggestedChapters.length > 0 && (
                   <div className="mb-3">
                     <p className="text-sm text-muted-foreground mb-2">
-                      From today's study plan:
+                      Pages from today's plan:
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {suggestedChapters.map(chapter => (
-                        <Badge key={chapter} variant="outline" className="px-2 py-1">
+                        <Badge 
+                          key={chapter} 
+                          variant={chapters.includes(chapter) ? "default" : "outline"} 
+                          className="px-2 py-1 cursor-pointer hover:bg-accent transition-colors"
+                          onClick={() => handleSuggestedChapterClick(chapter)}
+                        >
                           {currentExam?.usePages ? `Page ${chapter}` : `Ch. ${chapter}`}
                         </Badge>
                       ))}
