@@ -8,8 +8,8 @@ import {
   Clock, 
   Calendar,
   CheckCheck, 
-  BarChart, 
   TrendingUp,
+  BarChart, 
   AlertTriangle,
   CircleCheck
 } from 'lucide-react';
@@ -26,6 +26,7 @@ import {
   BarChart as RechartsBarChart,
   Bar
 } from 'recharts';
+import { useTranslation } from 'react-i18next';
 
 interface StatsCardProps {
   title: string;
@@ -46,6 +47,7 @@ interface ExamProgressData {
 
 const Statistics: React.FC = () => {
   const { exams, studyDays, studySessions } = useAppContext();
+  const { t } = useTranslation();
   
   // Calculate various statistics
   const stats = useMemo(() => {
@@ -200,44 +202,44 @@ const Statistics: React.FC = () => {
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 animate-fade-in">
       {/* Total Hours */}
       <StatsCard
-        title="Ore di studio totali"
+        title={t('statistics.totalHours')}
         value={stats.totalHours}
         icon={<Clock className="h-4 w-4" />}
-        description="ore totali"
+        description={t('statistics.totalHoursDesc')}
         color="bg-blue-500/10 text-blue-700"
       />
       
       {/* Study Sessions */}
       <StatsCard
-        title="Sessioni"
+        title={t('statistics.sessions')}
         value={stats.sessionsCount}
         icon={<BookOpen className="h-4 w-4" />}
-        description="sessioni completate"
+        description={t('statistics.sessionsDesc')}
         color="bg-green-500/10 text-green-700"
       />
       
       {/* Units Completed */}
       <StatsCard
-        title="Unità completate"
+        title={t('statistics.unitsCompleted')}
         value={stats.completedUnits}
         icon={<CheckCheck className="h-4 w-4" />}
-        description="pagine/capitoli"
+        description={t('statistics.unitsDesc')}
         color="bg-purple-500/10 text-purple-700"
       />
       
       {/* Study Streak */}
       <StatsCard
-        title="Streak di studio"
+        title={t('statistics.studyStreak')}
         value={stats.currentStreak}
         icon={<TrendingUp className="h-4 w-4" />}
-        description="giorni consecutivi"
+        description={t('statistics.streakDesc')}
         color="bg-orange-500/10 text-orange-700"
       />
       
       {/* Weekly Hours Chart */}
       <Card className="col-span-1 md:col-span-2">
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Andamento settimanale</CardTitle>
+          <CardTitle className="text-base">{t('statistics.weeklyProgress')}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="h-[200px]">
@@ -263,8 +265,8 @@ const Statistics: React.FC = () => {
                   unit="h"
                 />
                 <Tooltip 
-                  formatter={(value) => [`${value} ore`, 'Studio']}
-                  labelFormatter={(label) => `Data: ${label}`}
+                  formatter={(value) => [`${value} ${t('statistics.hours')}`, t('statistics.study')]}
+                  labelFormatter={(label) => `${t('statistics.date')}: ${label}`}
                 />
                 <Area
                   type="monotone"
@@ -283,7 +285,7 @@ const Statistics: React.FC = () => {
       {/* Overall Progress */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Progresso complessivo</CardTitle>
+          <CardTitle className="text-base">{t('statistics.overallProgress')}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col items-center justify-center py-2">
@@ -295,7 +297,7 @@ const Statistics: React.FC = () => {
               color="#9b87f5"
             />
             <p className="text-sm text-muted-foreground mt-4">
-              {stats.completedUnits} unità completate
+              {stats.completedUnits} {t('statistics.unitsCompleted').toLowerCase()}
             </p>
           </div>
         </CardContent>
@@ -304,7 +306,7 @@ const Statistics: React.FC = () => {
       {/* Average Hours */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Media giornaliera</CardTitle>
+          <CardTitle className="text-base">{t('statistics.dailyAverage')}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 gap-4">
@@ -314,7 +316,7 @@ const Statistics: React.FC = () => {
                   <BarChart className="h-4 w-4 text-green-700" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium">Ore per giorno</p>
+                  <p className="text-sm font-medium">{t('statistics.hoursPerDay')}</p>
                 </div>
               </div>
               <p className="text-2xl font-bold">{stats.avgHoursPerDay}</p>
@@ -325,7 +327,7 @@ const Statistics: React.FC = () => {
                   <Calendar className="h-4 w-4 text-blue-700" />
                 </div>
                 <div>
-                  <p className="text-sm font-medium">Giorni di studio</p>
+                  <p className="text-sm font-medium">{t('statistics.studyDays')}</p>
                 </div>
               </div>
               <p className="text-2xl font-bold">{stats.completedDaysCount}</p>
@@ -337,66 +339,79 @@ const Statistics: React.FC = () => {
       {/* Exams Progress */}
       <Card className="col-span-1 md:col-span-2 lg:col-span-4">
         <CardHeader className="pb-2">
-          <CardTitle className="text-base">Progresso per esame</CardTitle>
+          <CardTitle className="text-base">{t('statistics.examProgress')}</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {stats.examProgress.map(exam => (
-              <div key={exam.id} className="flex flex-col p-3 border rounded-lg">
-                <div className="flex justify-between items-center mb-2">
-                  <p className="font-medium">{exam.name}</p>
-                  {exam.isAtRisk ? (
-                    <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
-                      <AlertTriangle className="h-3 w-3 mr-1" />
-                      A rischio
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                      <CircleCheck className="h-3 w-3 mr-1" />
-                      In linea
-                    </Badge>
-                  )}
-                </div>
-                <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
-                  <span>Progresso: {exam.progress}%</span>
-                  <span>Giorni rimasti: {exam.daysLeft}</span>
-                </div>
-                <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-                  <div 
-                    className={`h-full ${
-                      exam.isAtRisk ? "bg-red-500" : "bg-green-500"
-                    }`}
-                    style={{ width: `${exam.progress}%` }}
-                  />
-                </div>
+          {stats.examProgress.length > 0 ? (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {stats.examProgress.map(exam => (
+                  <div key={exam.id} className="flex flex-col p-3 border rounded-lg">
+                    <div className="flex justify-between items-center mb-2">
+                      <p className="font-medium">{exam.name}</p>
+                      {exam.isAtRisk ? (
+                        <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+                          <AlertTriangle className="h-3 w-3 mr-1" />
+                          {t('statistics.atRisk')}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                          <CircleCheck className="h-3 w-3 mr-1" />
+                          {t('statistics.onTrack')}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
+                      <span>{t('statistics.progress')}: {exam.progress}%</span>
+                      <span>{t('statistics.daysLeft')}: {exam.daysLeft}</span>
+                    </div>
+                    <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full ${
+                          exam.isAtRisk ? "bg-red-500" : "bg-green-500"
+                        }`}
+                        style={{ width: `${exam.progress}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-          
-          {/* Graph view for exam progress */}
-          <div className="mt-6 h-[200px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <RechartsBarChart
-                data={stats.examProgress.map(e => ({ 
-                  name: e.name.substring(0, 15) + (e.name.length > 15 ? '...' : ''),
-                  progress: e.progress,
-                  risk: e.isAtRisk ? 100 : 0
-                }))}
-                margin={{
-                  top: 5,
-                  right: 5,
-                  left: 0,
-                  bottom: 5,
-                }}
-              >
-                <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
-                <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                <YAxis unit="%" tick={{ fontSize: 12 }} />
-                <Tooltip />
-                <Bar dataKey="progress" name="Progresso" fill="#9b87f5" />
-              </RechartsBarChart>
-            </ResponsiveContainer>
-          </div>
+              
+              {/* Graph view for exam progress */}
+              <div className="mt-6 h-[200px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <RechartsBarChart
+                    data={stats.examProgress.map(e => ({ 
+                      name: e.name.substring(0, 15) + (e.name.length > 15 ? '...' : ''),
+                      progress: e.progress,
+                      risk: e.isAtRisk ? 100 : 0
+                    }))}
+                    margin={{
+                      top: 5,
+                      right: 5,
+                      left: 0,
+                      bottom: 5,
+                    }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                    <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                    <YAxis unit="%" tick={{ fontSize: 12 }} />
+                    <Tooltip 
+                      formatter={(value, name) => [
+                        `${value}${name === "progress" ? "%" : ""}`, 
+                        name === "progress" ? t('statistics.progress') : ""
+                      ]}
+                    />
+                    <Bar dataKey="progress" name={t('statistics.progress')} fill="#9b87f5" />
+                  </RechartsBarChart>
+                </ResponsiveContainer>
+              </div>
+            </>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <p className="text-muted-foreground">{t('statistics.noExams')}</p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

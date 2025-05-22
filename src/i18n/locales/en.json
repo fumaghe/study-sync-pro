@@ -96,5 +96,29 @@
     "dangerZone": "Danger Zone",
     "resetWarning": "Resetting will permanently erase all your data, including exams, study plans, and settings.",
     "resetData": "Reset All Data"
+  },
+  "statistics": {
+    "totalHours": "Total Study Hours",
+    "totalHoursDesc": "total hours",
+    "sessions": "Sessions",
+    "sessionsDesc": "completed sessions",
+    "unitsCompleted": "Units Completed",
+    "unitsDesc": "pages/chapters",
+    "studyStreak": "Study Streak",
+    "streakDesc": "consecutive days",
+    "weeklyProgress": "Weekly Progress",
+    "hours": "hours",
+    "study": "Study",
+    "date": "Date",
+    "overallProgress": "Overall Progress",
+    "dailyAverage": "Daily Average",
+    "hoursPerDay": "Hours per day",
+    "studyDays": "Study days",
+    "examProgress": "Progress by Exam",
+    "atRisk": "At Risk",
+    "onTrack": "On Track",
+    "progress": "Progress",
+    "daysLeft": "Days left",
+    "noExams": "No exams to display. Add exams and start studying to see your progress."
   }
 }
