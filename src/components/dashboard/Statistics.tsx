@@ -289,9 +289,9 @@ const Statistics: React.FC = () => {
           <div className="flex flex-col items-center justify-center py-2">
             <ProgressRing 
               progress={stats.overallProgress} 
-              size={120} 
+              radius={60} 
               strokeWidth={10}
-              labelFontSize="1.5rem"
+              labelFontSize="text-base"
               color="#9b87f5"
             />
             <p className="text-sm text-muted-foreground mt-4">

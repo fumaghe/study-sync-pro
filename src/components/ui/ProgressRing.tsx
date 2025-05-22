@@ -7,6 +7,7 @@ interface ProgressRingProps {
   strokeWidth: number;
   color?: string;
   className?: string;
+  labelFontSize?: string;
 }
 
 const ProgressRing: React.FC<ProgressRingProps> = ({
@@ -15,6 +16,7 @@ const ProgressRing: React.FC<ProgressRingProps> = ({
   strokeWidth,
   color = '#9b87f5',
   className = '',
+  labelFontSize = 'text-xs',
 }) => {
   const normalizedRadius = radius - strokeWidth / 2;
   const circumference = normalizedRadius * 2 * Math.PI;
@@ -51,7 +53,7 @@ const ProgressRing: React.FC<ProgressRingProps> = ({
           className="progress-ring-circle"
         />
       </svg>
-      <div className="absolute inset-0 flex items-center justify-center text-xs font-medium">
+      <div className={`absolute inset-0 flex items-center justify-center font-medium ${labelFontSize}`}>
         {Math.round(progress)}%
       </div>
     </div>
