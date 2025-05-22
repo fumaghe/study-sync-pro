@@ -1,4 +1,5 @@
 
+import React from 'react';
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -18,11 +19,9 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <AppProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter basename="/study-sync-pro/">
+    <BrowserRouter basename="/study-sync-pro/">
+      <AppProvider>
+        <TooltipProvider>
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/exams" element={<ExamsPage />} />
@@ -31,10 +30,11 @@ const App = () => (
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </BrowserRouter>
-
-      </TooltipProvider>
-    </AppProvider>
+          <Toaster />
+          <Sonner />
+        </TooltipProvider>
+      </AppProvider>
+    </BrowserRouter>
   </QueryClientProvider>
 );
 

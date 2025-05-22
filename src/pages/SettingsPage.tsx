@@ -22,7 +22,6 @@ import { Separator } from '@/components/ui/separator';
 import { toast } from "sonner";
 import { useTranslation } from 'react-i18next';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Globe } from 'lucide-react';
 
 const formSchema = z.object({
   pomodoroWork: z.coerce.number().min(1).max(120),

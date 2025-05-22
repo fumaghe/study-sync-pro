@@ -6,16 +6,7 @@ import it from './locales/it.json';
 import es from './locales/es.json';
 import fr from './locales/fr.json';
 
-// Get language from localStorage or default to English
-const getStoredLanguage = () => {
-  try {
-    const storedLanguage = localStorage.getItem('language');
-    return storedLanguage || 'en';
-  } catch (error) {
-    return 'en';
-  }
-};
-
+// Initialize i18next with a more straightforward setup
 i18n
   .use(initReactI18next)
   .init({
@@ -25,10 +16,13 @@ i18n
       es: { translation: es },
       fr: { translation: fr }
     },
-    lng: getStoredLanguage(),
+    lng: localStorage.getItem('language') || 'en',
     fallbackLng: 'en',
     interpolation: {
       escapeValue: false
+    },
+    react: {
+      useSuspense: false // This can help with some rendering issues
     }
   });
 
