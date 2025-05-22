@@ -838,7 +838,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setExams([]);
       setStudyDays([]);
       setStudySessions([]);
-      setSettings(defaultSettings);
+      setSettings(initialSettings);
       localStorage.clear();
       toast.success("All data has been reset!");
     }
