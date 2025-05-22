@@ -8,10 +8,12 @@ import { Button } from '@/components/ui/button';
 import { useAppContext } from '@/contexts/AppContext';
 import { Link } from 'react-router-dom';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useTranslation } from 'react-i18next';
 
 const Dashboard: React.FC = () => {
   const { exams, generateStudyPlan } = useAppContext();
   const isMobile = useIsMobile();
+  const { t } = useTranslation();
   
   const handleGeneratePlan = () => {
     generateStudyPlan();
@@ -20,16 +22,16 @@ const Dashboard: React.FC = () => {
   return (
     <Layout>
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 sm:mb-6 gap-4">
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Dashboard</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{t('dashboard.title')}</h1>
         <div className="flex flex-wrap gap-2">
           {exams.length > 0 && (
             <Button onClick={handleGeneratePlan} size={isMobile ? "sm" : "default"} className="w-full sm:w-auto">
-              Generate Study Plan
+              {t('dashboard.generatePlan')}
             </Button>
           )}
           <Link to="/exams" className="w-full sm:w-auto">
             <Button variant="outline" size={isMobile ? "sm" : "default"} className="w-full">
-              Manage Exams
+              {t('dashboard.manageExams')}
             </Button>
           </Link>
         </div>
