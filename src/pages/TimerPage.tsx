@@ -1,14 +1,17 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import Layout from '@/components/layout/Layout';
 import PomodoroTimerUpgraded from '@/components/timer/PomodoroTimerUpgraded';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAppContext } from '@/contexts/AppContext';
 import { format } from 'date-fns';
 import { formatStudyTime } from '@/lib/formatters';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import PomodoroTimer from '@/components/timer/PomodoroTimer';
 
 const TimerPage: React.FC = () => {
   const { studySessions, exams } = useAppContext();
+  const [timerVersion, setTimerVersion] = useState<'upgraded' | 'classic'>('upgraded');
   
   // Group sessions by date, most recent first
   const sessionsByDate = studySessions.reduce<{ [date: string]: typeof studySessions }>((acc, session) => {
@@ -31,7 +34,14 @@ const TimerPage: React.FC = () => {
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
-          <PomodoroTimerUpgraded />
+          <Tabs defaultValue="upgraded" className="mb-4" onValueChange={(val: string) => setTimerVersion(val as 'upgraded' | 'classic')}>
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="upgraded">Visual Timer</TabsTrigger>
+              <TabsTrigger value="classic">Classic Timer</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          
+          {timerVersion === 'upgraded' ? <PomodoroTimerUpgraded /> : <PomodoroTimer />}
         </div>
         
         <div>
