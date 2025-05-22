@@ -31,6 +31,7 @@ export interface StudyDay {
   available: boolean;
   availableHours: number;
   exams: StudyDayExam[];
+  customModified?: boolean; // Flag to indicate user manually modified this day
 }
 
 export interface StudySession {

@@ -1,416 +1,430 @@
+
 import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { useAppContext } from '@/contexts/AppContext';
-import { StudySession } from '@/types';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { differenceInDays, parseISO, isBefore, isAfter, addDays, format } from 'date-fns';
+import { 
+  BookOpen, 
+  Clock, 
+  Calendar,
+  CheckCheck, 
+  BarChart, 
+  TrendingUp,
+  AlertTriangle,
+  CircleCheck
+} from 'lucide-react';
+import { ProgressRing } from '@/components/ui/ProgressRing';
+import { Badge } from '@/components/ui/badge';
 import {
-  addDays, differenceInDays, format, parseISO, startOfDay, subDays,
-  isSameDay, isAfter, isBefore, differenceInWeeks
-} from 'date-fns';
-import {
-  BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, CartesianGrid,
-  PieChart, Pie, Cell, LineChart, Line, AreaChart, Area, Legend
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  BarChart as RechartsBarChart,
+  Bar
 } from 'recharts';
-import {
-  CalendarDays, ChartLine, ChartBar, CircleHelp, CirclePercent
-} from "lucide-react";
+
+interface StatsCardProps {
+  title: string;
+  value: string | number;
+  icon: React.ReactNode;
+  description?: string;
+  trend?: number;
+  color?: string;
+}
+
+interface ExamProgressData {
+  id: string;
+  name: string;
+  progress: number;
+  daysLeft: number;
+  isAtRisk: boolean;
+}
 
 const Statistics: React.FC = () => {
-  const { exams, studySessions, studyDays } = useAppContext();
-  const isMobile = useIsMobile();
-  const today = startOfDay(new Date());
+  const { exams, studyDays, studySessions } = useAppContext();
   
-  // Calculate study data for the last 7 days
-  const lastWeek = useMemo(() => {
-    return Array.from({ length: 7 }, (_, i) => {
-      const date = subDays(today, 6 - i);
-      const dayStr = format(date, 'yyyy-MM-dd');
-      
-      const hoursStudied = studySessions
-        .filter(session => session.date.startsWith(dayStr))
-        .reduce((sum, session) => sum + session.duration / 60, 0);
-      
-      return {
-        day: format(date, 'EEE'),
-        fullDate: dayStr,
-        hours: Math.round(hoursStudied * 10) / 10, // Round to 1 decimal place
-      };
-    });
-  }, [studySessions, today]);
-  
-  // Calculate hours per exam
-  const examHours = useMemo(() => {
-    return exams.map(exam => {
-      const hoursStudied = studySessions
-        .filter(session => session.examId === exam.id)
-        .reduce((sum, session) => sum + session.duration / 60, 0);
-
-      const totalUnits = exam.usePages ? (exam.pages || 0) : exam.chapters;
-      let completedUnits = 0;
-      
-      studyDays.forEach(day => {
-        day.exams.forEach(examDay => {
-          if (examDay.examId === exam.id && examDay.completed) {
-            completedUnits += examDay.chapters.length;
-          }
-        });
-      });
-      
-      const progress = totalUnits > 0 ? (completedUnits / totalUnits) * 100 : 0;
-      
-      return {
-        id: exam.id,
-        name: exam.name,
-        hours: Math.round(hoursStudied * 10) / 10,
-        color: exam.color,
-        progress: Math.min(100, Math.round(progress)),
-        completedUnits,
-        totalUnits,
-        date: exam.date,
-        daysLeft: differenceInDays(parseISO(exam.date), today)
-      };
-    }).filter(item => item.hours > 0 || item.daysLeft >= 0);
-  }, [exams, studySessions, studyDays, today]);
-  
-  // Calculate streak and consistent study days
-  const studyStreak = useMemo(() => {
+  // Calculate various statistics
+  const stats = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Calculate total hours studied
+    const totalHours = studySessions.reduce((total, session) => {
+      return total + (session.duration / 60);
+    }, 0);
+    
+    // Calculate completed study days (days with at least one completed exam)
+    const completedDays = new Set(
+      studyDays
+        .filter(day => day.exams.some(exam => exam.completed))
+        .map(day => day.date)
+    );
+    
+    // Calculate study streak (consecutive days)
     let currentStreak = 0;
-    let longestStreak = 0;
-    let previousDate: Date | null = null;
+    let maxStreak = 0;
     
-    // Group sessions by date
-    const sessionsByDate = studySessions.reduce((acc, session) => {
-      const dateStr = session.date.split('T')[0];
-      if (!acc[dateStr]) acc[dateStr] = [];
-      acc[dateStr].push(session);
-      return acc;
-    }, {} as Record<string, StudySession[]>);
+    // Start from yesterday and go backwards
+    let checkDate = addDays(today, -1);
     
-    // Convert to array of dates and sort
-    const studyDates = Object.keys(sessionsByDate)
-      .map(dateStr => parseISO(dateStr))
-      .sort((a, b) => a.getTime() - b.getTime());
+    while (completedDays.has(format(checkDate, 'yyyy-MM-dd'))) {
+      currentStreak++;
+      checkDate = addDays(checkDate, -1);
+    }
     
-    // Calculate streaks
-    studyDates.forEach(date => {
-      if (!previousDate) {
-        currentStreak = 1;
-      } else {
-        const dayDiff = differenceInDays(date, previousDate);
-        if (dayDiff === 1) {
-          currentStreak++;
-        } else if (dayDiff > 1) {
-          currentStreak = 1;
-        }
-      }
-      
-      longestStreak = Math.max(longestStreak, currentStreak);
-      previousDate = date;
-    });
+    // Calculate average study hours per day
+    const avgHoursPerDay = completedDays.size > 0 
+      ? totalHours / completedDays.size 
+      : 0;
     
-    // Check if streak is still active
-    const lastStudyDate = studyDates[studyDates.length - 1];
-    const isActiveStreak = lastStudyDate && differenceInDays(today, lastStudyDate) <= 1;
+    // Find closest upcoming exam
+    const upcomingExams = exams
+      .filter(exam => isAfter(parseISO(exam.date), today))
+      .sort((a, b) => parseISO(a.date).getTime() - parseISO(b.date).getTime());
     
-    return {
-      current: isActiveStreak ? currentStreak : 0,
-      longest: longestStreak,
-      daysStudied: studyDates.length,
-      consistency: studyDates.length > 0 
-        ? Math.round((studyDates.length / (differenceInDays(today, studyDates[0]) + 1)) * 100) 
-        : 0
-    };
-  }, [studySessions, today]);
-  
-  // Calculate average hours studied per active day
-  const avgHoursPerStudyDay = useMemo(() => {
-    if (studySessions.length === 0) return 0;
+    const closestExam = upcomingExams.length > 0 ? upcomingExams[0] : null;
+    const daysToNextExam = closestExam
+      ? differenceInDays(parseISO(closestExam.date), today)
+      : 0;
     
-    const totalHours = studySessions.reduce((sum, session) => sum + session.duration / 60, 0);
-    const uniqueDays = new Set(studySessions.map(session => session.date.split('T')[0])).size;
+    // Calculate total completed units (pages/chapters)
+    let completedUnits = 0;
+    let totalUnits = 0;
     
-    return uniqueDays > 0 ? Math.round((totalHours / uniqueDays) * 10) / 10 : 0;
-  }, [studySessions]);
-  
-  // Calculate exams with risk (low progress compared to days left)
-  const examsAtRisk = useMemo(() => {
-    return examHours
-      .filter(exam => exam.daysLeft > 0)
-      .map(exam => {
-        const progressPercentage = exam.progress;
-        const timePercentage = 100 - ((exam.daysLeft / (differenceInDays(parseISO(exam.date), today) + exam.daysLeft)) * 100);
-        const discrepancy = timePercentage - progressPercentage;
-        
-        let riskLevel = "low";
-        if (discrepancy > 40) riskLevel = "high";
-        else if (discrepancy > 20) riskLevel = "medium";
-        
-        return {
-          ...exam,
-          discrepancy,
-          riskLevel
-        };
-      })
-      .sort((a, b) => b.discrepancy - a.discrepancy);
-  }, [examHours, today]);
-  
-  // Find closest exam
-  const closestExam = useMemo(() => {
-    return exams
-      .filter(exam => {
-        const examDate = parseISO(exam.date);
-        return differenceInDays(examDate, today) >= 0;
-      })
-      .sort((a, b) => {
-        const daysToA = differenceInDays(parseISO(a.date), today);
-        const daysToB = differenceInDays(parseISO(b.date), today);
-        return daysToA - daysToB;
-      })[0];
-  }, [exams, today]);
-  
-  const daysToClosestExam = closestExam 
-    ? differenceInDays(parseISO(closestExam.date), today) 
-    : null;
-
-  // Calculate completed pages or chapters
-  const totalCompleted = useMemo(() => {
-    let totalCompleted = 0;
+    // Create a map for fast exam lookup
+    const examsMap = new Map(exams.map(exam => [exam.id, exam]));
     
     studyDays.forEach(day => {
       day.exams.forEach(examDay => {
         if (examDay.completed) {
-          totalCompleted += examDay.chapters.length;
+          completedUnits += examDay.chapters.length;
+        }
+        
+        const exam = examsMap.get(examDay.examId);
+        if (exam) {
+          totalUnits += exam.usePages ? (exam.pages || 0) : exam.chapters;
         }
       });
     });
     
-    return totalCompleted;
-  }, [studyDays]);
-  
-  // Calculate total hours studied
-  const totalHoursStudied = examHours.reduce((sum, item) => sum + item.hours, 0);
-  const totalSessions = studySessions.length;
-  
-  const upcomingExamsCount = exams.filter(exam => {
-    const examDate = parseISO(exam.date);
-    return differenceInDays(examDate, today) >= 0;
-  }).length;
-  
-  // Color helpers
-  const getRiskColor = (riskLevel: string) => {
-    switch(riskLevel) {
-      case "high": return "#e74c3c";
-      case "medium": return "#f39c12";
-      default: return "#2ecc71";
-    }
-  };
-  
-  const getProgressColor = (progress: number) => {
-    if (progress >= 75) return "#2ecc71";
-    if (progress >= 50) return "#f39c12";
-    return "#e74c3c";
-  };
-  
-  const COLORS = ['#9b87f5', '#7E69AB', '#3498db', '#2ecc71', '#e74c3c', '#f39c12'];
+    // Calculate overall progress percentage
+    const overallProgress = totalUnits > 0
+      ? Math.round((completedUnits / totalUnits) * 100)
+      : 0;
+    
+    // Prepare weekly study data for chart
+    const lastTwoWeeks = Array.from({ length: 14 }, (_, i) => {
+      const date = addDays(today, -13 + i);
+      const dateString = format(date, 'yyyy-MM-dd');
+      
+      // Get all sessions for this day
+      const daySessionsMinutes = studySessions
+        .filter(session => session.date === dateString)
+        .reduce((sum, session) => sum + session.duration, 0);
+      
+      return {
+        date: format(date, 'dd/MM'),
+        hours: Math.round((daySessionsMinutes / 60) * 10) / 10
+      };
+    });
+    
+    // Calculate individual exam progress
+    const examProgress: ExamProgressData[] = [];
+    
+    exams.forEach(exam => {
+      if (isBefore(parseISO(exam.date), today)) return; // Skip past exams
+      
+      const daysLeft = differenceInDays(parseISO(exam.date), today);
+      
+      // Count completed units for this exam
+      const completedExamUnits = new Set<number>();
+      studyDays.forEach(day => {
+        day.exams
+          .filter(e => e.examId === exam.id && e.completed)
+          .forEach(examDay => {
+            examDay.chapters.forEach(unit => completedExamUnits.add(unit));
+          });
+      });
+      
+      const totalExamUnits = exam.usePages ? (exam.pages || 0) : exam.chapters;
+      const examProgressPercentage = totalExamUnits > 0
+        ? Math.round((completedExamUnits.size / totalExamUnits) * 100)
+        : 0;
+      
+      // Determine if exam is at risk (progress less than days passed)
+      // Calculate days since start of study or today if no start date
+      const startDate = exam.startStudyDate ? parseISO(exam.startStudyDate) : today;
+      const totalDaysToStudy = differenceInDays(parseISO(exam.date), startDate);
+      const daysPassed = Math.max(0, differenceInDays(today, startDate));
+      
+      // Expected progress based on time passed
+      const expectedProgress = totalDaysToStudy > 0
+        ? Math.round((daysPassed / totalDaysToStudy) * 100)
+        : 0;
+      
+      // Exam is at risk if actual progress is significantly less than expected
+      const isAtRisk = examProgressPercentage < expectedProgress - 10;
+      
+      examProgress.push({
+        id: exam.id,
+        name: exam.name,
+        progress: examProgressPercentage,
+        daysLeft,
+        isAtRisk
+      });
+    });
+    
+    // Sort exams by days left
+    examProgress.sort((a, b) => a.daysLeft - b.daysLeft);
+    
+    return {
+      totalHours: Math.round(totalHours * 10) / 10,
+      sessionsCount: studySessions.length,
+      upcomingExamsCount: upcomingExams.length,
+      daysToNextExam,
+      completedDaysCount: completedDays.size,
+      currentStreak,
+      avgHoursPerDay: Math.round(avgHoursPerDay * 10) / 10,
+      completedUnits,
+      overallProgress,
+      weeklyData: lastTwoWeeks,
+      examProgress
+    };
+  }, [exams, studyDays, studySessions]);
 
   return (
-    <Card className="animate-fade-in">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <ChartBar className="h-5 w-5" />
-          Statistics
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Main Stats */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <div className="text-center p-3 sm:p-4 bg-accent rounded-lg">
-            <p className="text-xl sm:text-2xl font-bold">{Math.round(totalHoursStudied)}</p>
-            <p className="text-xs sm:text-sm text-muted-foreground">Total hours</p>
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 animate-fade-in">
+      {/* Total Hours */}
+      <StatsCard
+        title="Ore di studio totali"
+        value={stats.totalHours}
+        icon={<Clock className="h-4 w-4" />}
+        description="ore totali"
+        color="bg-blue-500/10 text-blue-700"
+      />
+      
+      {/* Study Sessions */}
+      <StatsCard
+        title="Sessioni"
+        value={stats.sessionsCount}
+        icon={<BookOpen className="h-4 w-4" />}
+        description="sessioni completate"
+        color="bg-green-500/10 text-green-700"
+      />
+      
+      {/* Units Completed */}
+      <StatsCard
+        title="Unità completate"
+        value={stats.completedUnits}
+        icon={<CheckCheck className="h-4 w-4" />}
+        description="pagine/capitoli"
+        color="bg-purple-500/10 text-purple-700"
+      />
+      
+      {/* Study Streak */}
+      <StatsCard
+        title="Streak di studio"
+        value={stats.currentStreak}
+        icon={<TrendingUp className="h-4 w-4" />}
+        description="giorni consecutivi"
+        color="bg-orange-500/10 text-orange-700"
+      />
+      
+      {/* Weekly Hours Chart */}
+      <Card className="col-span-1 md:col-span-2">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Andamento settimanale</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[200px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart
+                data={stats.weeklyData}
+                margin={{
+                  top: 5,
+                  right: 5,
+                  left: 0,
+                  bottom: 5,
+                }}
+              >
+                <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                <XAxis 
+                  dataKey="date" 
+                  tick={{ fontSize: 12 }}
+                  tickFormatter={(value) => value.split('/')[0]}
+                />
+                <YAxis 
+                  tick={{ fontSize: 12 }}
+                  allowDecimals={false}
+                  unit="h"
+                />
+                <Tooltip 
+                  formatter={(value) => [`${value} ore`, 'Studio']}
+                  labelFormatter={(label) => `Data: ${label}`}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="hours"
+                  stroke="#9b87f5"
+                  fill="#9b87f5"
+                  fillOpacity={0.3}
+                  strokeWidth={2}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
-          <div className="text-center p-3 sm:p-4 bg-accent rounded-lg">
-            <p className="text-xl sm:text-2xl font-bold">{avgHoursPerStudyDay}</p>
-            <p className="text-xs sm:text-sm text-muted-foreground">Avg hrs/day</p>
+        </CardContent>
+      </Card>
+      
+      {/* Overall Progress */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Progresso complessivo</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col items-center justify-center py-2">
+            <ProgressRing 
+              progress={stats.overallProgress} 
+              size={120} 
+              strokeWidth={10}
+              labelFontSize="1.5rem"
+              color="#9b87f5"
+            />
+            <p className="text-sm text-muted-foreground mt-4">
+              {stats.completedUnits} unità completate
+            </p>
           </div>
-          <div className="text-center p-3 sm:p-4 bg-accent rounded-lg">
-            <p className="text-xl sm:text-2xl font-bold">{totalCompleted}</p>
-            <p className="text-xs sm:text-sm text-muted-foreground">Units completed</p>
-          </div>
-          <div className="text-center p-3 sm:p-4 bg-accent rounded-lg">
-            <p className="text-xl sm:text-2xl font-bold">{studyStreak.current}</p>
-            <p className="text-xs sm:text-sm text-muted-foreground">Day streak</p>
-          </div>
-        </div>
-        
-        {/* Second row stats */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <div className="text-center p-3 sm:p-4 bg-accent rounded-lg">
-            <p className="text-xl sm:text-2xl font-bold">{totalSessions}</p>
-            <p className="text-xs sm:text-sm text-muted-foreground">Study sessions</p>
-          </div>
-          <div className="text-center p-3 sm:p-4 bg-accent rounded-lg">
-            <p className="text-xl sm:text-2xl font-bold">{studyStreak.consistency}%</p>
-            <p className="text-xs sm:text-sm text-muted-foreground">Consistency</p>
-          </div>
-          <div className="text-center p-3 sm:p-4 bg-accent rounded-lg">
-            <p className="text-xl sm:text-2xl font-bold">{upcomingExamsCount}</p>
-            <p className="text-xs sm:text-sm text-muted-foreground">Upcoming exams</p>
-          </div>
-          <div className="text-center p-3 sm:p-4 bg-accent rounded-lg">
-            <p className="text-xl sm:text-2xl font-bold">{daysToClosestExam !== null ? daysToClosestExam : '-'}</p>
-            <p className="text-xs sm:text-sm text-muted-foreground">Days to next exam</p>
-          </div>
-        </div>
-
-        {/* Study Hours Chart */}
-        {lastWeek.some(day => day.hours > 0) && (
-          <div className="space-y-2 pt-2">
-            <h3 className="text-sm font-medium flex items-center gap-1">
-              <ChartLine className="h-4 w-4" />
-              Study Hours (Last 7 Days)
-            </h3>
-            <div className={`h-${isMobile ? '32' : '40'}`}>
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={lastWeek} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
-                  <defs>
-                    <linearGradient id="colorHours" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#9b87f5" stopOpacity={0.8}/>
-                      <stop offset="95%" stopColor="#9b87f5" stopOpacity={0.1}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                  <XAxis dataKey="day" tick={{ fontSize: 10 }} />
-                  <YAxis tick={{ fontSize: 10 }} />
-                  <Tooltip formatter={(value) => [`${value} hrs`, 'Hours']} />
-                  <Area 
-                    type="monotone" 
-                    dataKey="hours" 
-                    stroke="#9b87f5" 
-                    fillOpacity={1} 
-                    fill="url(#colorHours)" 
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        )}
-
-        {/* Exam Progress Section */}
-        {examHours.length > 0 && (
-          <div className="space-y-3 pt-2">
-            <h3 className="text-sm font-medium flex items-center gap-1">
-              <CirclePercent className="h-4 w-4" />
-              Exam Progress
-            </h3>
-            <div className="space-y-3">
-              {examHours
-                .filter(exam => exam.daysLeft >= 0)
-                .sort((a, b) => a.daysLeft - b.daysLeft)
-                .slice(0, 4)
-                .map(exam => (
-                  <div key={exam.id} className="space-y-1">
-                    <div className="flex justify-between items-center text-xs">
-                      <div className="font-medium truncate" style={{maxWidth: '60%'}} title={exam.name}>
-                        {exam.name}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Badge variant={exam.daysLeft < 7 ? "destructive" : "secondary"} className="text-[10px]">
-                          {exam.daysLeft} days left
-                        </Badge>
-                        <span className="font-semibold">{exam.progress}%</span>
-                      </div>
-                    </div>
-                    <div className="h-2 bg-accent rounded-full overflow-hidden">
-                      <div 
-                        className="h-full rounded-full transition-all duration-500"
-                        style={{
-                          width: `${exam.progress}%`, 
-                          backgroundColor: getProgressColor(exam.progress)
-                        }}
-                      />
-                    </div>
-                  </div>
-              ))}
-            </div>
-          </div>
-        )}
-        
-        {/* Exams at Risk */}
-        {examsAtRisk.length > 0 && (
-          <div className="space-y-2 pt-2">
-            <h3 className="text-sm font-medium flex items-center gap-1">
-              <CircleHelp className="h-4 w-4" />
-              Exams Needing Attention
-            </h3>
-            <div className="space-y-2">
-              {examsAtRisk.slice(0, 2).map(exam => (
-                <div 
-                  key={exam.id} 
-                  className="flex justify-between items-center p-2 rounded-md border" 
-                  style={{ borderColor: getRiskColor(exam.riskLevel) }}
-                >
-                  <div className="flex flex-col">
-                    <span className="text-sm font-medium truncate" style={{maxWidth: '150px'}} title={exam.name}>
-                      {exam.name}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      Progress: {exam.progress}% (Target: {Math.round(100 - ((exam.daysLeft / (differenceInDays(parseISO(exam.date), today) + exam.daysLeft)) * 100))}%)
-                    </span>
-                  </div>
-                  <Badge 
-                    className="capitalize" 
-                    style={{
-                      backgroundColor: getRiskColor(exam.riskLevel),
-                      color: 'white'
-                    }}
-                  >
-                    {exam.riskLevel} risk
-                  </Badge>
+        </CardContent>
+      </Card>
+      
+      {/* Average Hours */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Media giornaliera</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 gap-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <div className="mr-2 bg-green-500/20 p-2 rounded-full">
+                  <BarChart className="h-4 w-4 text-green-700" />
                 </div>
-              ))}
+                <div>
+                  <p className="text-sm font-medium">Ore per giorno</p>
+                </div>
+              </div>
+              <p className="text-2xl font-bold">{stats.avgHoursPerDay}</p>
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <div className="mr-2 bg-blue-500/20 p-2 rounded-full">
+                  <Calendar className="h-4 w-4 text-blue-700" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium">Giorni di studio</p>
+                </div>
+              </div>
+              <p className="text-2xl font-bold">{stats.completedDaysCount}</p>
             </div>
           </div>
-        )}
+        </CardContent>
+      </Card>
+      
+      {/* Exams Progress */}
+      <Card className="col-span-1 md:col-span-2 lg:col-span-4">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Progresso per esame</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {stats.examProgress.map(exam => (
+              <div key={exam.id} className="flex flex-col p-3 border rounded-lg">
+                <div className="flex justify-between items-center mb-2">
+                  <p className="font-medium">{exam.name}</p>
+                  {exam.isAtRisk ? (
+                    <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+                      <AlertTriangle className="h-3 w-3 mr-1" />
+                      A rischio
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                      <CircleCheck className="h-3 w-3 mr-1" />
+                      In linea
+                    </Badge>
+                  )}
+                </div>
+                <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
+                  <span>Progresso: {exam.progress}%</span>
+                  <span>Giorni rimasti: {exam.daysLeft}</span>
+                </div>
+                <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div 
+                    className={`h-full ${
+                      exam.isAtRisk ? "bg-red-500" : "bg-green-500"
+                    }`}
+                    style={{ width: `${exam.progress}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+          
+          {/* Graph view for exam progress */}
+          <div className="mt-6 h-[200px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <RechartsBarChart
+                data={stats.examProgress.map(e => ({ 
+                  name: e.name.substring(0, 15) + (e.name.length > 15 ? '...' : ''),
+                  progress: e.progress,
+                  risk: e.isAtRisk ? 100 : 0
+                }))}
+                margin={{
+                  top: 5,
+                  right: 5,
+                  left: 0,
+                  bottom: 5,
+                }}
+              >
+                <CartesianGrid strokeDasharray="3 3" opacity={0.2} />
+                <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                <YAxis unit="%" tick={{ fontSize: 12 }} />
+                <Tooltip />
+                <Bar dataKey="progress" name="Progresso" fill="#9b87f5" />
+              </RechartsBarChart>
+            </ResponsiveContainer>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
 
-        {/* Hours Distribution Pie Chart */}
-        {examHours.length > 0 && !isMobile && (
-          <div className="space-y-2 pt-2">
-            <h3 className="text-sm font-medium flex items-center gap-1">
-              <CalendarDays className="h-4 w-4" />
-              Hours by Exam
-            </h3>
-            <div className="h-48 flex flex-col items-center">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={examHours}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    outerRadius={70}
-                    fill="#8884d8"
-                    dataKey="hours"
-                    nameKey="name"
-                    label={({ name, percent }) => 
-                      isMobile ? 
-                        `${(percent * 100).toFixed(0)}%` : 
-                        `${name}: ${(percent * 100).toFixed(0)}%`
-                    }
-                  >
-                    {examHours.map((entry, index) => (
-                      <Cell 
-                        key={`cell-${index}`} 
-                        fill={entry.color || COLORS[index % COLORS.length]} 
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value) => [`${value} hrs`, 'Hours']} />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
+// Helper component for stat cards
+const StatsCard: React.FC<StatsCardProps> = ({ 
+  title, 
+  value, 
+  icon, 
+  description, 
+  trend, 
+  color = "bg-primary/10"
+}) => {
+  return (
+    <Card>
+      <CardContent className="p-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-muted-foreground">{title}</p>
+            <p className="text-2xl font-bold">{value}</p>
+            {description && <p className="text-xs text-muted-foreground mt-1">{description}</p>}
           </div>
-        )}
+          <div className={`p-2 rounded-full ${color}`}>
+            {icon}
+          </div>
+        </div>
       </CardContent>
     </Card>
   );
