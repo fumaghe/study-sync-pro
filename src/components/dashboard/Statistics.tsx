@@ -13,7 +13,7 @@ import {
   AlertTriangle,
   CircleCheck
 } from 'lucide-react';
-import { ProgressRing } from '@/components/ui/ProgressRing';
+import ProgressRing from '@/components/ui/ProgressRing';
 import { Badge } from '@/components/ui/badge';
 import {
   AreaChart,
